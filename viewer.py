@@ -96,7 +96,7 @@ td.no,th.no{padding-left:2px;padding-right:2px;color:var(--mute);font-size:14px;
   <div id="warn"></div>
   <div style="height:10px"></div>
   <div class="bar">
-    <input type="search" id="q" placeholder="공고명·기관·메모·ID 검색">
+    <input type="search" id="q" placeholder="공고명·기관·대상·상금·메모·ID 검색">
     <details class="ms" id="src" data-t="사이트"><summary>전체 사이트</summary><div class="pop"></div></details>
     <details class="ms" id="cat" data-t="분야"><summary>전체 분야</summary><div class="pop"></div></details>
     <details class="ms" id="tt" data-t="대상"><summary>전체 대상</summary><div class="pop"></div></details>
@@ -153,7 +153,7 @@ function render(){
     &&(any(r.regions,rg)||(rg.length&&(r.regions||[]).includes('전국')))
     &&(r.apply_end||$('#unknown').checked)
     &&(!$('#soon').checked||(r.apply_end&&dday(r.apply_end)<=7))
-    &&words.every(w=>w===String(r.id)||[r.title,r.organizer,r.summary,r.target,r.memo].join(' ').toLowerCase().includes(w)));
+    &&words.every(w=>w===String(r.id)||[r.title,r.organizer,r.summary,r.target,...(r.target_types||[]),...(r.regions||[]),r.top_prize,r.top_gift,r.award,r.memo].join(' ').toLowerCase().includes(w)));
   rows.sort((a,b)=>{const x=a[sortKey]??'',y=b[sortKey]??''; if(!x&&y)return 1; if(x&&!y)return -1; return (x<y?-1:x>y?1:0)*(asc?1:-1)});
   $('#count').textContent=`${rows.length}건 / 전체 ${data.length}건`;
   $('#rows').innerHTML=rows.map((r,i)=>{const d=dday(r.apply_end);
