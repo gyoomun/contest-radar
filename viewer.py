@@ -56,7 +56,7 @@ PAGE = r"""<!doctype html>
 :root{--bg:#f8f9fa;--card:#fff;--fg:#212529;--mute:#868e96;--line:#e9ecef;--accent:#1c7ed6;--hot:#e03131;--warn:#f08c00}
 @media (prefers-color-scheme:dark){:root{--bg:#141517;--card:#1f2023;--fg:#e9ecef;--mute:#909296;--line:#2c2e33;--accent:#4dabf7;--hot:#ff6b6b;--warn:#ffa94d}}
 *{box-sizing:border-box}body{margin:0;height:100vh;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);font:16px/1.55 -apple-system,"Apple SD Gothic Neo",sans-serif}
-header{flex:none;background:var(--bg);padding:12px 8px;border-bottom:1px solid var(--line);z-index:1}
+header{flex:none;background:var(--bg);padding:12px 8px;border-bottom:1px solid var(--line);z-index:10}
 h1{font-size:22px;margin:0 0 10px}h1 small{color:var(--mute);font-weight:400;font-size:15px;margin-left:8px}
 .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 input[type=search]{flex:1 1 240px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg);font:inherit}
