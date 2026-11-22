@@ -46,7 +46,8 @@ header{position:sticky;top:0;background:var(--bg);padding:12px 8px;border-bottom
 h1{font-size:22px;margin:0 0 10px}h1 small{color:var(--mute);font-weight:400;font-size:15px;margin-left:8px}
 .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 input[type=search]{flex:1 1 240px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg);font:inherit}
-select{appearance:none;padding:8px 32px 8px 10px;background:var(--card) url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%278%27%3E%3Cpath d=%27M1 1l5 5 5-5%27 fill=%27none%27 stroke=%27%23868e96%27 stroke-width=%271.6%27/%3E%3C/svg%3E") no-repeat right 12px center;border:1px solid var(--line);border-radius:8px;color:var(--fg);font:inherit}
+details.ms{position:relative}details.ms>summary::-webkit-details-marker{display:none}details.ms>summary{list-style:none;cursor:pointer;white-space:nowrap;min-width:130px;appearance:none;padding:8px 32px 8px 10px;background:var(--card) url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%278%27%3E%3Cpath d=%27M1 1l5 5 5-5%27 fill=%27none%27 stroke=%27%23868e96%27 stroke-width=%271.6%27/%3E%3C/svg%3E") no-repeat right 12px center;border:1px solid var(--line);border-radius:8px;color:var(--fg);font:inherit}
+details.ms .pop{position:absolute;z-index:5;top:calc(100% + 4px);left:0;min-width:100%;max-height:60vh;overflow:auto;padding:6px;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.35)}details.ms .pop label{display:flex;gap:8px;align-items:center;padding:6px 8px;border-radius:6px;white-space:nowrap;cursor:pointer;font-size:15px}details.ms .pop label:hover{background:var(--line)}details.ms[data-n]:not([data-n="0"])>summary{border-color:var(--accent);color:var(--accent)}
 label.tg{color:var(--mute);white-space:nowrap;cursor:pointer;padding:7px 12px;border:1px solid var(--line);border-radius:99px;font-size:14px;user-select:none}label.tg input{display:none}label.tg:has(input:checked){color:var(--accent);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}input[type=search]{flex:1 1 200px;max-width:360px}
 main{padding:0 8px 40px;overflow-x:auto}td.id{color:var(--mute);font-size:14px;line-height:25px;vertical-align:middle;font-variant-numeric:tabular-nums;font-family:ui-monospace,Menlo,monospace;width:1px;white-space:nowrap}
 table{width:100%;min-width:1280px;table-layout:fixed;border-collapse:collapse;background:var(--card);border-radius:12px;overflow:hidden;margin-top:12px}
@@ -77,10 +78,10 @@ td.no,th.no{padding-left:2px;padding-right:2px;color:var(--mute);font-size:14px;
   <div style="height:10px"></div>
   <div class="bar">
     <input type="search" id="q" placeholder="공고명·기관·메모·ID 검색">
-    <select id="src"><option value="">전체 사이트</option></select>
-    <select id="cat"><option value="">전체 분야</option></select>
-    <select id="tt"><option value="">전체 대상</option></select>
-    <select id="rg"><option value="">전체 지역</option></select>
+    <details class="ms" id="src" data-t="사이트"><summary>전체 사이트</summary><div class="pop"></div></details>
+    <details class="ms" id="cat" data-t="분야"><summary>전체 분야</summary><div class="pop"></div></details>
+    <details class="ms" id="tt" data-t="대상"><summary>전체 대상</summary><div class="pop"></div></details>
+    <details class="ms" id="rg" data-t="지역"><summary>전체 지역</summary><div class="pop"></div></details>
     <label class="tg"><input type="checkbox" id="star">★ 관심만</label>
     <label class="tg"><input type="checkbox" id="onlynew">NEW만</label>
     <label class="tg"><input type="checkbox" id="soon">D-7 이내</label>
@@ -104,15 +105,21 @@ function lim(r){
     .filter(Boolean).join(' · ');
   return lim?`<div class="lim" style="margin-top:4px">${esc(lim)}</div>`:'';
 }
+// 여러 개 고르기: 고른 값 목록. 아무것도 안 고르면 전체
+const picked=sel=>[...document.querySelectorAll(sel+' input:checked')].map(i=>i.value);
+document.querySelectorAll('details.ms').forEach(d=>d.addEventListener('change',()=>{
+  const v=picked('#'+d.id); d.dataset.n=v.length;
+  d.querySelector('summary').textContent=!v.length?'전체 '+d.dataset.t:v.length===1?v[0]:`${d.dataset.t} ${v.length}개`; render()}));
+document.addEventListener('click',e=>document.querySelectorAll('details.ms[open]').forEach(d=>{if(!d.contains(e.target))d.open=false}));
 function render(){
-  const words=$('#q').value.trim().toLowerCase().split(/\s+/).filter(Boolean), src=$('#src').value,
-    cat=$('#cat').value, tt=$('#tt').value, rg=$('#rg').value;
-  let rows=data.filter(r=>(!src||r.links.some(l=>l.name===src))
+  const words=$('#q').value.trim().toLowerCase().split(/\s+/).filter(Boolean), src=picked('#src'),
+    cat=picked('#cat'), tt=picked('#tt'), rg=picked('#rg'), any=(have,want)=>!want.length||(have||[]).some(v=>want.includes(v));
+  let rows=data.filter(r=>any(r.links.map(l=>l.name),src)
     &&(r.is_recruit!==false||$('#norec').checked)
     &&(!$('#star').checked||r.star)&&(!$('#onlynew').checked||r.is_new)
-    &&(!cat||(r.category||[]).includes(cat))
-    &&(!tt||(r.target_types||[]).includes(tt)||(r.target_types||[]).includes('누구나'))
-    &&(!rg||(r.regions||[]).includes(rg)||(r.regions||[]).includes('전국'))
+    &&any(r.category,cat)
+    &&(any(r.target_types,tt)||(tt.length&&(r.target_types||[]).includes('누구나')))
+    &&(any(r.regions,rg)||(rg.length&&(r.regions||[]).includes('전국')))
     &&(r.apply_end||$('#unknown').checked)
     &&(!$('#soon').checked||(r.apply_end&&dday(r.apply_end)<=7))
     &&words.every(w=>w===String(r.id)||[r.title,r.organizer,r.summary,r.target,r.memo].join(' ').toLowerCase().includes(w)));
@@ -128,7 +135,7 @@ function render(){
       <td class="m hide-sm date">${r.posted_at||''}</td></tr>`}).join('');
 }
 document.querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{const k=th.dataset.k; asc=sortKey===k?!asc:true; sortKey=k; render()});
-['#q','#src','#cat','#tt','#rg','#star','#onlynew','#soon','#unknown','#norec'].forEach(s=>$(s).addEventListener('input',render));
+['#q','#star','#onlynew','#soon','#unknown','#norec'].forEach(s=>$(s).addEventListener('input',render));
 const save=r=>fetch('/api/mark',{method:'POST',body:JSON.stringify({id:r.id,star:r.star,memo:r.memo})});
 $('#rows').addEventListener('click',e=>{const act=e.target.dataset.act; if(!act)return;
   const r=data.find(x=>x.id==e.target.closest('tr').dataset.id);
@@ -146,7 +153,7 @@ $('#run').onclick=()=>{if(!confirm('지금 수집을 시작할까요? (몇 분~�
   fetch('/api/run',{method:'POST'}).then(()=>{$('#run').disabled=true; $('#run').textContent='수집 중…'; setTimeout(status,3000)})};
 status();
 fetch('/api/notices').then(r=>r.json()).then(d=>{data=d;
-  const opts=(sel,vals)=>[...new Set(vals)].filter(Boolean).sort().forEach(n=>$(sel).insertAdjacentHTML('beforeend',`<option>${esc(n)}</option>`));
+  const opts=(sel,vals)=>[...new Set(vals)].filter(Boolean).sort().forEach(n=>$(sel+' .pop').insertAdjacentHTML('beforeend',`<label><input type="checkbox" value="${esc(n)}">${esc(n)}</label>`));
   opts('#src',d.flatMap(r=>r.links.map(l=>l.name))); opts('#cat',d.flatMap(r=>r.category||[]));
   opts('#tt',d.flatMap(r=>r.target_types||[])); opts('#rg',d.flatMap(r=>r.regions||[]));
   const done=d.filter(r=>r.status==='detailed').length; $('#prog').textContent=done<d.length?` · 상세 읽음 ${done}/${d.length}`:'';
