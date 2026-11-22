@@ -12,7 +12,7 @@ import psycopg
 
 from collect import DSN
 
-PORT = 8765
+PORT = int(os.environ.get("PORT", 8765))   # 시험용은 PORT=8766 으로 따로 띄운다(배포 중인 8765 를 건드리지 않게)
 HERE = os.path.dirname(os.path.abspath(__file__))
 # 바깥(클라우드플레어 터널)에서 들어오면 비밀번호를 묻는다. 비밀번호는 .env 의 RADAR_PASSWORD (저장소가 public 이라 코드에 두지 않는다)
 ENV = dict(l.strip().split("=", 1) for l in open(os.path.join(HERE, ".env")) if "=" in l) if os.path.exists(os.path.join(HERE, ".env")) else {}
@@ -41,7 +41,7 @@ SQL = """
 SELECT n.id, n.title, n.url, n.organizer, n.posted_at, n.apply_start, n.apply_end,
        n.status, n.first_seen_at::date, n.is_recruit, n.category, n.summary, n.target, n.target_types,
        n.regions, n.age_min, n.age_max, n.biz_age_max, n.benefit,
-       n.first_seen_at > now() - interval '24 hours', m.star, m.memo,
+       n.first_seen_at > now() - interval '24 hours', m.star, m.memo, n.top_prize, n.top_gift, n.award,
        (SELECT json_agg(json_build_object('name', s.name, 'url', l.url) ORDER BY s.name)
         FROM notice_links l JOIN sources s ON s.id = l.source_id WHERE l.notice_id = n.id) AS links
 FROM notices n LEFT JOIN marks m ON m.notice_id = n.id
@@ -55,18 +55,19 @@ PAGE = r"""<!doctype html>
 <style>
 :root{--bg:#f8f9fa;--card:#fff;--fg:#212529;--mute:#868e96;--line:#e9ecef;--accent:#1c7ed6;--hot:#e03131;--warn:#f08c00}
 @media (prefers-color-scheme:dark){:root{--bg:#141517;--card:#1f2023;--fg:#e9ecef;--mute:#909296;--line:#2c2e33;--accent:#4dabf7;--hot:#ff6b6b;--warn:#ffa94d}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 -apple-system,"Apple SD Gothic Neo",sans-serif}
-header{position:sticky;top:0;background:var(--bg);padding:12px 8px;border-bottom:1px solid var(--line);z-index:1}
+*{box-sizing:border-box}body{margin:0;height:100vh;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);font:16px/1.55 -apple-system,"Apple SD Gothic Neo",sans-serif}
+header{flex:none;background:var(--bg);padding:12px 8px;border-bottom:1px solid var(--line);z-index:1}
 h1{font-size:22px;margin:0 0 10px}h1 small{color:var(--mute);font-weight:400;font-size:15px;margin-left:8px}
 .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 input[type=search]{flex:1 1 240px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg);font:inherit}
 details.ms{position:relative}details.ms>summary::-webkit-details-marker{display:none}details.ms>summary{list-style:none;cursor:pointer;white-space:nowrap;min-width:130px;appearance:none;padding:8px 32px 8px 10px;background:var(--card) url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%278%27%3E%3Cpath d=%27M1 1l5 5 5-5%27 fill=%27none%27 stroke=%27%23868e96%27 stroke-width=%271.6%27/%3E%3C/svg%3E") no-repeat right 12px center;border:1px solid var(--line);border-radius:8px;color:var(--fg);font:inherit}
 details.ms .pop{position:absolute;z-index:5;top:calc(100% + 4px);left:0;min-width:100%;max-height:60vh;overflow:auto;padding:6px;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.35)}details.ms .pop label{display:flex;gap:8px;align-items:center;padding:6px 8px;border-radius:6px;white-space:nowrap;cursor:pointer;font-size:15px}details.ms .pop label:hover{background:var(--line)}details.ms[data-n]:not([data-n="0"])>summary{border-color:var(--accent);color:var(--accent)}
 label.tg{color:var(--mute);white-space:nowrap;cursor:pointer;padding:7px 12px;border:1px solid var(--line);border-radius:99px;font-size:14px;user-select:none}label.tg input{display:none}label.tg:has(input:checked){color:var(--accent);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}input[type=search]{flex:1 1 200px;max-width:360px}
-main{padding:0 8px 40px;overflow-x:auto}td.id{color:var(--mute);font-size:14px;line-height:25px;vertical-align:middle;font-variant-numeric:tabular-nums;font-family:ui-monospace,Menlo,monospace;width:1px;white-space:nowrap}
-table{width:100%;min-width:1280px;table-layout:fixed;border-collapse:collapse;background:var(--card);border-radius:12px;overflow:hidden;margin-top:12px}
+main{flex:1;min-height:0;padding:0 8px 40px;overflow:auto;scrollbar-gutter:stable}main::-webkit-scrollbar{width:10px;height:10px}main::-webkit-scrollbar-track,main::-webkit-scrollbar-corner{background:transparent}main::-webkit-scrollbar-thumb{background:transparent;border-radius:99px;border:2px solid transparent;background-clip:padding-box}main.scrolling::-webkit-scrollbar-thumb{background-color:color-mix(in srgb,var(--mute) 55%,transparent)}td.id{color:var(--mute);font-size:14px;line-height:25px;vertical-align:middle;font-variant-numeric:tabular-nums;font-family:ui-monospace,Menlo,monospace;width:1px;white-space:nowrap}
+table{width:100%;min-width:1600px;table-layout:fixed;border-collapse:collapse;background:var(--card);border-radius:12px;margin-top:12px}
 th,td{padding:9px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
-th{font-size:14px;color:var(--mute);font-weight:600;background:var(--card);cursor:pointer;user-select:none;white-space:nowrap}
+th:first-child{border-top-left-radius:12px}th:last-child{border-top-right-radius:12px}
+th{position:sticky;top:0;z-index:2;font-size:14px;color:var(--mute);font-weight:600;background:var(--card);cursor:pointer;user-select:none;white-space:nowrap}
 td.org{min-width:150px}th.c,td.stc{text-align:center;width:1px}td.no,td.stc{vertical-align:middle}td.tags,td.site,td.date{width:1px;white-space:nowrap}td.tags>*,td.site .src{display:block;width:fit-content;margin:0 0 6px}td.tags>:last-child,td.site .src:last-child{margin-bottom:0}td.t a{color:var(--fg);text-decoration:none;font-weight:500}td.t a:hover{color:var(--accent);text-decoration:underline}
 td.m{color:var(--mute);font-size:14px}td.c{font-size:14px;line-height:1.5}
 .src{text-decoration:none;margin:1px 0;display:inline-block;font-size:13px;padding:1px 8px;border-radius:99px;border:1px solid var(--line);color:var(--mute);white-space:nowrap}
@@ -80,7 +81,7 @@ td.m{color:var(--mute);font-size:14px}td.c{font-size:14px;line-height:1.5}
 #warn{margin:8px 0 0;padding:8px 12px;border-radius:8px;background:color-mix(in srgb,var(--hot) 12%,transparent);color:var(--hot);font-size:15px}#warn:empty{display:none}
 .run{margin-left:auto;padding:7px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg);font:inherit;cursor:pointer}.run:disabled{opacity:.5;cursor:default}
 /* 열 폭 고정: 검색·새로고침 때 내용에 따라 폭이 다시 계산돼 헤더가 움찔거리지 않게. 공고명이 남는 폭을 가진다 */
-thead th:nth-child(1){width:40px}thead th:nth-child(2){width:48px}thead th:nth-child(3){width:40px}thead th:nth-child(4){width:92px}thead th:nth-child(5){width:118px}thead th:nth-child(7){width:16%}thead th:nth-child(8){width:15%}thead th:nth-child(9){width:140px}thead th:nth-child(10){width:152px}thead th:nth-child(11){width:96px}td{overflow-wrap:anywhere}
+thead th:nth-child(1){width:40px}thead th:nth-child(2){width:48px}thead th:nth-child(3){width:40px}thead th:nth-child(4){width:92px}thead th:nth-child(5){width:118px}thead th:nth-child(7){width:190px}thead th:nth-child(8){width:211px}thead th:nth-child(9){width:225px}thead th:nth-child(10){width:140px}thead th:nth-child(11){width:152px}thead th:nth-child(12){width:96px}td.pz b{display:block;font-size:16px;color:var(--fg)}td.pz .g{display:block;font-size:14px;margin-top:2px}td.pz .aw{display:block;font-size:14px;margin-top:4px;color:var(--warn)}td{overflow-wrap:anywhere}
 td.no,th.no{padding-left:2px;padding-right:2px;color:var(--mute);font-size:14px;line-height:25px;text-align:center;width:1%;white-space:nowrap;font-variant-numeric:tabular-nums}
 @media (max-width:700px){.hide-sm{display:none}}
 </style></head><body>
@@ -104,7 +105,7 @@ td.no,th.no{padding-left:2px;padding-right:2px;color:var(--mute);font-size:14px;
   </div>
 </header>
 <main><table><thead><tr>
-  <th class="no">#</th><th data-k="id">ID</th><th data-k="star" class="c">★</th><th data-k="apply_end">마감</th><th>분야</th><th data-k="title">공고명</th><th>대상</th><th>지원</th><th data-k="organizer" class="hide-sm">기관</th>
+  <th class="no">#</th><th data-k="id">ID</th><th data-k="star" class="c">★</th><th data-k="apply_end">마감</th><th>분야</th><th data-k="title">공고명</th><th>1등 시상</th><th>지원</th><th>대상</th><th data-k="organizer" class="hide-sm">기관</th>
   <th class="hide-sm">사이트</th><th data-k="posted_at" class="hide-sm">등록</th>
 </tr></thead><tbody id="rows"></tbody></table></main>
 <script>
@@ -125,6 +126,7 @@ document.querySelectorAll('details.ms').forEach(d=>d.addEventListener('change',(
   const v=picked('#'+d.id); d.dataset.n=v.length;
   d.querySelector('summary').textContent=!v.length?'전체 '+d.dataset.t:v.length===1?v[0]:`${d.dataset.t} ${v.length}개`; render()}));
 document.addEventListener('click',e=>document.querySelectorAll('details.ms[open]').forEach(d=>{if(!d.contains(e.target))d.open=false}));
+let scrollT; $('main').addEventListener('scroll',e=>{e.target.classList.add('scrolling'); clearTimeout(scrollT); scrollT=setTimeout(()=>e.target.classList.remove('scrolling'),900)});
 function render(){
   const words=$('#q').value.trim().toLowerCase().split(/\s+/).filter(Boolean), src=picked('#src'),
     cat=picked('#cat'), tt=picked('#tt'), rg=picked('#rg'), any=(have,want)=>!want.length||(have||[]).some(v=>want.includes(v));
@@ -144,7 +146,8 @@ function render(){
     return `<tr data-id="${r.id}"><td class="no">${i+1}</td><td class="id">${r.id}</td><td class="stc"><button class="st${r.star?' on':''}" data-act="star" title="관심">${r.star?'★':'☆'}</button></td><td><span class="dd ${cls}">${d==null?'모름':d===0?'오늘':'D-'+d}</span><div style="color:var(--mute);font-size:14px;white-space:nowrap">${r.apply_end||''}</div></td>
       <td class="tags">${r.is_new?'<span class="new">NEW</span>':''}${cats(r)}</td>
       <td class="t"><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a><span class="mbtn" data-act="memo">${r.memo?'메모 고치기':'메모'}</span>${r.summary?`<div class="sub">${esc(r.summary)}</div>`:''}${r.memo?`<div class="memo">${esc(r.memo)}</div>`:''}</td>
-      <td class="c">${esc(r.target)}${lim(r)}</td><td class="c">${esc(r.benefit)}</td>
+      <td class="c pz">${r.top_prize?`<b>${esc(r.top_prize)}</b>`:''}${r.top_gift?`<span class="g">${esc(r.top_gift)}</span>`:''}${r.award?`<span class="aw">${esc(r.award)}</span>`:''}</td>
+      <td class="c">${esc(r.benefit)}</td><td class="c">${esc(r.target)}${lim(r)}</td>
       <td class="m hide-sm org">${esc(r.organizer)}</td><td class="hide-sm site">${[...new Map(r.links.map(l=>[l.name,l])).values()].map(l=>`<a class="src" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.name)}</a>`).join(' ')}</td>
       <td class="m hide-sm date">${r.posted_at||''}</td></tr>`}).join('');
 }
@@ -176,7 +179,7 @@ fetch('/api/notices').then(r=>r.json()).then(d=>{data=d;
 
 COLS = ["id", "title", "url", "organizer", "posted_at", "apply_start", "apply_end", "status", "first_seen", "is_recruit",
         "category", "summary", "target", "target_types", "regions", "age_min", "age_max", "biz_age_max", "benefit",
-        "is_new", "star", "memo", "links"]
+        "is_new", "star", "memo", "top_prize", "top_gift", "award", "links"]
 
 
 class H(BaseHTTPRequestHandler):

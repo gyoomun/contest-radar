@@ -14,7 +14,7 @@
   - 사이트가 실패하거나 단계가 실패하면 맥 알림(osascript)을 띄운다(대리님이 못 볼 때가 있다). 뷰어 맨 위에도 마지막 실행 실패 사이트와 7일째 새 글 없는 사이트를 띄운다
   - plist 의 PATH 에 claude·uv·docker·pdftotext 폴더를 박아 두었다. 어느 하나 위치가 바뀌면 plist 를 고치고 bootout·bootstrap 한다
 - 뷰어: launchd `com.gyoomun.contest-radar-viewer`(launchd/ 의 plist, KeepAlive)가 늘 띄워 둔다 → http://127.0.0.1:8765, 밖에서는 https://radar.gyoomun.com
-  - viewer.py 를 고치면 `launchctl kickstart -k gui/$(id -u)/com.gyoomun.contest-radar-viewer` 로 다시 켜야 반영된다. 데이터는 새로고침만. 로그는 `~/Library/Logs/contest-radar/viewer.log`
+  - 고친 화면은 먼저 `PORT=8766 uv run viewer.py` 로 로컬에서 보여 주고, 대리님이 "배포"라고 하면 커밋 후 `launchctl kickstart -k gui/$(id -u)/com.gyoomun.contest-radar-viewer` 로 반영한다(대리님 결정: 배포 전에 로컬 먼저). 데이터는 새로고침만. 로그는 `~/Library/Logs/contest-radar/viewer.log`
   - radar.gyoomun.com 은 HQ 와 같은 클라우드플레어 터널(`~/.cloudflared/config.yml` ingress, 개인 계정 gyoomun.com 의 CNAME)이다. ingress 를 고치면 `launchctl kickstart -k gui/$(id -u)/com.cloudflare.cloudflared` (HQ 접속도 몇 초 끊긴다)
   - 터널로 들어온 요청(Cf-Connecting-Ip 헤더)만 비밀번호를 묻는다. 비밀번호는 `.env` 의 RADAR_PASSWORD(저장소가 public 이라 git 에서 뺐다). 맞으면 쿠키 radar 를 1년 심는다. 바꾸면 모두 다시 로그인한다
   - 공고를 누르면 원문 페이지를 연다. 우리 화면의 요약·대상·지원은 참고용이고 확인은 원문으로 한다(대리님 결정)
@@ -31,6 +31,8 @@
 ## 핵심 개념
 - notices = 공고 하나, notice_links = 그 공고가 올라온 사이트별 주소. 중복이면 행을 지우고 링크만 남은 공고로 옮긴다
 - 분야(category)·대상(target_types)·지역(regions)은 detail.py 의 고정 목록에서만 고른다. 사이트 원래 분류는 site_category
+  - 공간 입주기업 모집은 '입주·공간', 돈·멘토링을 주는 사업은 '창업·사업화'로 나눈다(대리님 요청)
+- 1등 시상: top_prize(1등 현금)·top_gift(1등 상품)·award(최고 상격). 공모전이 아닌 지원사업은 비운다
 - 묶기: 제목 trigram 0.4 이상이 후보. 괄호·기호 뺀 제목이 같으면 바로 합치고, 나머지는 Claude 가 주최·접수기간·대상·요약까지 보고 판단(collect.py SAME_RULES). 같은 게시판 글끼리는 후보로 안 본다(씽굿 "중복 //" 글만 예외). 시·도 태그나 제목 연도가 다르면 묶지 않는다
 - `--check-groups`: 이미 묶인 공고를 같은 규칙으로 다시 보고 다른 공고인 링크를 떼어 새 공고(status new)로 만든다. 뗀 뒤 detail.py 로 상세를 읽힌다
 
