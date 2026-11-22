@@ -48,7 +48,7 @@ h1{font-size:22px;margin:0 0 10px}h1 small{color:var(--mute);font-weight:400;fon
 input[type=search]{flex:1 1 240px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg);font:inherit}
 select{appearance:none;padding:8px 32px 8px 10px;background:var(--card) url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%278%27%3E%3Cpath d=%27M1 1l5 5 5-5%27 fill=%27none%27 stroke=%27%23868e96%27 stroke-width=%271.6%27/%3E%3C/svg%3E") no-repeat right 12px center;border:1px solid var(--line);border-radius:8px;color:var(--fg);font:inherit}
 label.tg{color:var(--mute);white-space:nowrap;cursor:pointer;padding:7px 12px;border:1px solid var(--line);border-radius:99px;font-size:14px;user-select:none}label.tg input{display:none}label.tg:has(input:checked){color:var(--accent);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}input[type=search]{flex:1 1 200px;max-width:360px}
-main{padding:0 8px 40px}
+main{padding:0 8px 40px;overflow-x:auto}td.id{color:var(--mute);font-size:14px;line-height:25px;vertical-align:middle;font-variant-numeric:tabular-nums;font-family:ui-monospace,Menlo,monospace;width:1px;white-space:nowrap}
 table{width:100%;border-collapse:collapse;background:var(--card);border-radius:12px;overflow:hidden;margin-top:12px}
 th,td{padding:9px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
 th{font-size:14px;color:var(--mute);font-weight:600;background:var(--card);cursor:pointer;user-select:none;white-space:nowrap}
@@ -74,7 +74,7 @@ td.no,th.no{padding-left:2px;padding-right:2px;color:var(--mute);font-size:14px;
   <div id="warn"></div>
   <div style="height:10px"></div>
   <div class="bar">
-    <input type="search" id="q" placeholder="공고명·기관 검색 (띄어쓰기로 여러 단어)">
+    <input type="search" id="q" placeholder="공고명·기관·메모·ID 검색">
     <select id="src"><option value="">전체 사이트</option></select>
     <select id="cat"><option value="">전체 분야</option></select>
     <select id="tt"><option value="">전체 대상</option></select>
@@ -87,7 +87,7 @@ td.no,th.no{padding-left:2px;padding-right:2px;color:var(--mute);font-size:14px;
   </div>
 </header>
 <main><table><thead><tr>
-  <th class="no">#</th><th data-k="star" class="c">★</th><th data-k="apply_end">마감</th><th>분야</th><th data-k="title">공고명</th><th>대상</th><th>지원</th><th data-k="organizer" class="hide-sm">기관</th>
+  <th class="no">#</th><th data-k="id">ID</th><th data-k="star" class="c">★</th><th data-k="apply_end">마감</th><th>분야</th><th data-k="title">공고명</th><th>대상</th><th>지원</th><th data-k="organizer" class="hide-sm">기관</th>
   <th class="hide-sm">사이트</th><th data-k="posted_at" class="hide-sm">등록</th>
 </tr></thead><tbody id="rows"></tbody></table></main>
 <script>
@@ -113,12 +113,12 @@ function render(){
     &&(!rg||(r.regions||[]).includes(rg)||(r.regions||[]).includes('전국'))
     &&(r.apply_end||$('#unknown').checked)
     &&(!$('#soon').checked||(r.apply_end&&dday(r.apply_end)<=7))
-    &&words.every(w=>[r.title,r.organizer,r.summary,r.target,r.memo].join(' ').toLowerCase().includes(w)));
+    &&words.every(w=>w===String(r.id)||[r.title,r.organizer,r.summary,r.target,r.memo].join(' ').toLowerCase().includes(w)));
   rows.sort((a,b)=>{const x=a[sortKey]??'',y=b[sortKey]??''; if(!x&&y)return 1; if(x&&!y)return -1; return (x<y?-1:x>y?1:0)*(asc?1:-1)});
   $('#count').textContent=`${rows.length}건 / 전체 ${data.length}건`;
   $('#rows').innerHTML=rows.map((r,i)=>{const d=dday(r.apply_end);
     const cls=d==null?'none':d<=3?'hot':d<=7?'warn':'';
-    return `<tr data-id="${r.id}"><td class="no">${i+1}</td><td class="stc"><button class="st${r.star?' on':''}" data-act="star" title="관심">${r.star?'★':'☆'}</button></td><td><span class="dd ${cls}">${d==null?'모름':d===0?'오늘':'D-'+d}</span><div style="color:var(--mute);font-size:14px;white-space:nowrap">${r.apply_end||''}</div></td>
+    return `<tr data-id="${r.id}"><td class="no">${i+1}</td><td class="id">${r.id}</td><td class="stc"><button class="st${r.star?' on':''}" data-act="star" title="관심">${r.star?'★':'☆'}</button></td><td><span class="dd ${cls}">${d==null?'모름':d===0?'오늘':'D-'+d}</span><div style="color:var(--mute);font-size:14px;white-space:nowrap">${r.apply_end||''}</div></td>
       <td class="tags">${r.is_new?'<span class="new">NEW</span>':''}${cats(r)}</td>
       <td class="t"><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a><span class="mbtn" data-act="memo">${r.memo?'메모 고치기':'메모'}</span>${r.summary?`<div class="sub">${esc(r.summary)}</div>`:''}${r.memo?`<div class="memo">${esc(r.memo)}</div>`:''}</td>
       <td class="c">${esc(r.target)}${lim(r)}</td><td class="c">${esc(r.benefit)}</td>
