@@ -186,12 +186,13 @@ def save(conn, source_id, items):
 
 # ---------- 다른 사이트의 같은 공고 묶기 ----------
 
-AUTO_SIM = 0.8   # 공고명 유사도가 이 이상이면 바로 같은 공고
-ASK_SIM = 0.4    # 이 이상 AUTO_SIM 미만은 Claude 에게 묻는다
+ASK_SIM = 0.4    # 공고명 유사도가 이 이상이면 후보. 공고명이 (괄호·기호 빼고) 같으면 바로 합치고 나머지는 Claude 에게 묻는다
 
 PAIRS_SQL = r"""
-SELECT a.id, b.id, a.title, b.title, a.organizer, b.organizer, a.apply_end, b.apply_end,
-       similarity(norm_title(a.title), norm_title(b.title))
+SELECT a.id, b.id, a.title, b.title,
+       concat_ws(' / ', '주최 ' || a.organizer, '기간 ' || concat(a.apply_start, '~', a.apply_end), '대상 ' || a.target, a.summary),
+       concat_ws(' / ', '주최 ' || b.organizer, '기간 ' || concat(b.apply_start, '~', b.apply_end), '대상 ' || b.target, b.summary),
+       norm_title(a.title) = norm_title(b.title)
 FROM notices a JOIN notices b
   ON a.id < b.id AND norm_title(a.title) %% norm_title(b.title)
   -- 같은 게시판의 서로 다른 글은 다른 공고. 씽굿이 다시 올린 '중복 //' 글만 예외
@@ -203,16 +204,19 @@ WHERE (a.apply_end IS NULL OR b.apply_end IS NULL OR a.apply_end = b.apply_end)
   AND (a.first_seen_at >= %s OR b.first_seen_at >= %s)
 """
 
+SAME_RULES = """사람이 판단하듯 누가 여는지(주최), 언제 받는지(접수기간), 누구를 받는지(대상), 무슨 사업인지(공고명·내용)를 함께 본다.
+- 연도·회차·주최·대상·지역이 다르면 다른 공고다(예: 조선일보 신춘문예 ≠ 문화일보 신춘문예, 대전 사업 ≠ 충북 사업)
+- 같은 부처가 같은 기간에 같은 대상으로 내도 사업 이름·내용이 다르면 다른 공고다(예: 정보보호 컨설팅 지원 ≠ 정보보호 제품 도입 지원)
+- '모집 공고'와 '선정·합격·결과 안내'는 다른 글이다. 차수·월(9월/12월, 1차/2차)이 다르면 다른 공고다
+- 표기만 다르거나 '재공고·연장·수정'이 붙은 것은 같은 공고다. 정보가 비어 있는 칸('?')은 판단에서 뺀다"""
+
 SAME_SCHEMA = {"type": "object", "properties": {"same": {"type": "array", "items": {"type": "integer"}}}, "required": ["same"]}
 
 
 def claude_same(pairs):
     """[(번호, 공고A, 공고B)] 중 같은 공고인 번호만 돌려준다."""
     text = "\n".join(f"{i}. A: {a} / B: {b}" for i, a, b in pairs)
-    prompt = """두 사이트에서 모은 공고 쌍이다. 같은 공모전·지원사업을 가리키는 쌍의 번호만 same 에 넣어라.
-연도·회차·주최·대상이 다르면 다른 공고다(예: 조선일보 신춘문예 ≠ 문화일보 신춘문예, 대전 사업 ≠ 충북 사업).
-'모집 공고'와 '선정·합격·결과 안내'는 다른 글이다. 차수·월(9월/12월, 1차/2차)이 다르면 다른 공고다.
-표기만 다르거나 '재공고·연장·수정'이 붙은 것은 같은 공고로 본다."""
+    prompt = SAME_RULES + "\n두 사이트에서 모은 공고 쌍이다. 같은 공고인 쌍의 번호만 same 에 넣어라."
     with CLAUDE_SLOTS:
         r = subprocess.run(["claude", "-p", prompt, "--model", "haiku", "--output-format", "json",
                             "--no-session-persistence", "--tools", "", "--json-schema", json.dumps(SAME_SCHEMA)],
@@ -241,13 +245,12 @@ def merge_duplicates(conn, since):
     info_title = {}
     for a, b, ta, tb, *_ in rows:
         info_title[a], info_title[b] = ta, tb
-    same = [(a, b) for a, b, *_, sim in rows if sim >= AUTO_SIM]
-    ask = [r for r in rows if r[-1] < AUTO_SIM]
-    desc = lambda t, o, e: f"{t} (주최 {o or '?'}, 마감 {e or '?'})"
+    same = [(a, b) for a, b, *_, ident in rows if ident]   # 괄호·기호만 다른 같은 공고명
+    ask = [r for r in rows if not r[-1]]
     batches = [ask[i:i + 50] for i in range(0, len(ask), 50)]
     with ThreadPoolExecutor(PARALLEL) as ex:
         for batch, yes in zip(batches, ex.map(
-                lambda bt: claude_same([(i, desc(r[2], r[4], r[6]), desc(r[3], r[5], r[7])) for i, r in enumerate(bt)]),
+                lambda bt: claude_same([(i, f"{r[2]} ({r[4] or '?'})", f"{r[3]} ({r[5] or '?'})") for i, r in enumerate(bt)]),
                 batches)):
             same += [(batch[i][0], batch[i][1]) for i in yes if i < len(batch)]
 
@@ -291,6 +294,47 @@ def merge_duplicates(conn, since):
     conn.execute("""UPDATE notices n SET title = l.title FROM notice_links l
                     WHERE l.notice_id = n.id AND n.title LIKE '중복%%' AND l.title NOT LIKE '중복%%'""")
     return merged
+
+
+SPLIT_SCHEMA = {"type": "object", "properties": {"wrong": {"type": "array", "items": {"type": "string"}}}, "required": ["wrong"]}
+
+
+def claude_wrong(groups):
+    """[(대표 설명, [(링크 주소, 사이트, 글 제목)])] → 대표 공고와 다른 공고인 링크 주소들"""
+    text = "\n\n".join(f"## {g}\n" + "\n".join(f"- {u} [{s}] {t}" for u, s, t in links) for g, links in groups)
+    prompt = SAME_RULES + "\n묶음마다 ## 줄이 대표 공고, - 줄이 같은 공고라며 묶인 사이트별 글이다. 대표 공고와 다른 공고인 글의 주소만 wrong 에 넣어라."
+    with CLAUDE_SLOTS:
+        r = subprocess.run(["claude", "-p", prompt, "--model", "haiku", "--output-format", "json",
+                            "--no-session-persistence", "--tools", "", "--json-schema", json.dumps(SPLIT_SCHEMA)],
+                           input=text, capture_output=True, text=True, timeout=300)
+    out = json.loads(r.stdout)
+    if out.get("is_error") or "structured_output" not in out:
+        raise RuntimeError(f"claude 실패: {out.get('result', r.stderr)[:300]}")
+    return set(out["structured_output"]["wrong"])
+
+
+def check_groups(conn):
+    """이미 묶인 공고를 다시 보고, 다른 공고인 링크는 떼어 새 공고(status new)로 만든다. 뗀 링크 주소들을 돌려준다."""
+    rows = conn.execute("""
+        SELECT n.id, concat_ws(' / ', n.title, '주최 ' || n.organizer, '기간 ' || concat(n.apply_start, '~', n.apply_end),
+                              '대상 ' || n.target, n.summary),
+               json_agg(json_build_array(l.url, s.name, l.title) ORDER BY l.url)
+        FROM notices n JOIN notice_links l ON l.notice_id = n.id JOIN sources s ON s.id = l.source_id
+        GROUP BY n.id HAVING count(*) > 1""").fetchall()
+    own = dict(conn.execute("SELECT id, url FROM notices WHERE id = ANY(%s)", ([r[0] for r in rows],)).fetchall())
+    batches = [rows[i:i + 20] for i in range(0, len(rows), 20)]
+    with ThreadPoolExecutor(PARALLEL) as ex:
+        wrong = set().union(*ex.map(lambda bt: claude_wrong([(d, links) for _, d, links in bt]), batches))
+    split = []
+    for nid, _, links in rows:
+        for u, _, t in links:
+            if u in wrong and u != own[nid]:   # 대표 공고 자신의 링크는 떼지 않는다
+                (sid, cat) = conn.execute("SELECT source_id, site_category FROM notice_links WHERE url = %s", (u,)).fetchone()
+                (new,) = conn.execute("INSERT INTO notices (source_id, url, title, site_category) VALUES (%s,%s,%s,%s) RETURNING id",
+                                      (sid, u, t, cat)).fetchone()
+                conn.execute("UPDATE notice_links SET notice_id = %s WHERE url = %s", (new, u))
+                split.append((nid, new, t))
+    return split
 
 
 # ---------- 화면 사이트: 쪽마다 Claude 로 해석 ----------
@@ -517,6 +561,11 @@ def main():
     if sys.argv[1:] == ["--merge-all"]:   # 이미 모은 공고 전체를 한 번 묶을 때
         with psycopg.connect(DSN, autocommit=True) as conn:
             print(f"묶음: {merge_duplicates(conn, date(2000, 1, 1))}건 합침")
+        return
+    if sys.argv[1:] == ["--check-groups"]:   # 묶인 공고를 다시 보고 다른 공고인 링크를 떼어 냄
+        with psycopg.connect(DSN, autocommit=True) as conn:
+            for nid, new, t in check_groups(conn):
+                print(f"{nid} 에서 뗌 → {new} {t}")
         return
     started = datetime.now().astimezone()
     with psycopg.connect(DSN) as conn:
