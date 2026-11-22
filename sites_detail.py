@@ -154,6 +154,36 @@ def detizen(url, _html):
     return "\n".join(parts), files
 
 
+AGGREGATORS = ("wevity.com", "thinkcontest.com", "thinkyou.co.kr", "detizen.com")   # 남의 공고를 옮겨 싣는 모음 사이트
+HOMEPAGE_MAX = 15000
+
+
+def _homepage(html, base, text):
+    """모음 사이트 글의 '홈페이지' 칸 링크(주최 쪽 공고 페이지). 모음 사이트 자기 주소는 뺀다"""
+    host = urllib.parse.urlsplit(base).hostname
+    if html:
+        soup = BeautifulSoup(html, "html.parser")
+        for label in soup.find_all(string=re.compile(r"^\s*홈페이지\s*$")):
+            box = label.parent.parent   # <li><span>홈페이지</span><a> · <div><div class=tit>홈페이지</div><div class=txt><a>
+            for a in (box.find_all("a", href=True) if box else []):
+                if a["href"].startswith("http") and urllib.parse.urlsplit(a["href"]).hostname != host:
+                    return a["href"]
+    m = re.search(r"homepage_url: (https?://\S+)", text)   # 대티즌은 API 값
+    return m.group(1) if m else None
+
+
+def _with_homepage(url, html, text):
+    """주최 홈페이지 글을 본문 뒤에 붙인다. 모음 사이트 글엔 1등 상금·대상이 빠지고 홈페이지에만 있는 경우가 있다(포항 MICE 해커톤)"""
+    hp = _homepage(html, url, text)
+    if not hp:
+        return text
+    try:
+        page = _text(_soup(fetch(hp)).body)[:HOMEPAGE_MAX]
+    except Exception as e:   # 홈페이지가 막히거나 죽어 있어도 원래 글로는 읽는다
+        return text + f"\n\n[주최 홈페이지 {hp}] 열지 못함: {e}"
+    return text + f"\n\n[주최 홈페이지 {hp}]\n{page}"
+
+
 SITES = {
     "bizinfo.go.kr": bizinfo, "k-startup.go.kr": kstartup, "itp.or.kr": itp, "creativekorea.or.kr": ccei,
     "youth.incheon.go.kr": inuu, "mediahub.seoul.go.kr": mediahub, "thinkyou.co.kr": thinkyou,
@@ -169,5 +199,7 @@ def get(url):
             text, files = fn(url, html)
             if not text.strip():
                 text = _text(_soup(html).body) if html else ""   # 본문 자리를 못 찾으면 페이지 전체 글
+            if key in AGGREGATORS:
+                text = _with_homepage(url, html, text)
             return text, files
     raise ValueError(f"모르는 사이트: {url}")

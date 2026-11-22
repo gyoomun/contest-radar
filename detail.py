@@ -51,18 +51,21 @@ SCHEMA = {
         "biz_age_max": {"type": ["number", "null"]},
         "benefit": S, "amount_max": I, "documents": S,
         "top_prize": S, "top_gift": S, "award": S, "top_prize_won": I, "top_gift_won": I,
+        "total_prize": S, "total_prize_won": I, "support": S, "support_won": I,
         "selection": S, "contact": S,
     },
     "required": ["is_recruit", "organizer", "apply_start", "apply_end", "apply_text", "category", "summary", "target",
                  "target_types", "age_min", "age_max", "regions", "biz_age_max", "benefit", "amount_max", "documents",
-                 "top_prize", "top_gift", "award", "top_prize_won", "top_gift_won", "selection", "contact"],
+                 "top_prize", "top_gift", "award", "top_prize_won", "top_gift_won", "total_prize", "total_prize_won", "support", "support_won", "selection", "contact"],
 }
 
 PRIZE_RULES = """- top_prize: 1등(대상·최우수상 등 가장 높은 상)이 받는 현금 상금. 상 이름과 금액을 짧게 (예: "대상 500만원"). 현금이 없으면 null
 - top_gift: 1등이 받는 상품권·물품 (예: "상품권 30만원", "태블릿 PC"). 없으면 null
 - award: 가장 높은 상의 상격·상장 (예: "과학기술정보통신부 장관상", "인천광역시장상"). 없으면 null
 - top_prize_won, top_gift_won: top_prize 의 현금, top_gift 의 금액(원, 정수). 금액이 안 적혀 있으면 null (예: "대상 500만원" → 5000000, "태블릿 PC" → null)
-- 공모전·대회가 아닌 지원사업(사업화 자금·교육 등)이면 모두 null"""
+- 공모전·대회가 아닌 지원사업(사업화 자금·교육 등)이면 위 다섯은 모두 null
+- total_prize, total_prize_won: 공모전·대회의 총상금(모든 상을 합친 금액). 글 그대로 짧게와 원 단위 정수 (예: "총상금 1,000만원" → 10000000). 없으면 null
+- support, support_won: 지원사업에서 한 곳(한 명)이 받는 지원금. 무엇에 쓰는 얼마인지 짧게와 최대 금액 원 단위 정수 (예: "창업 간접비 최대 1,000만원" → 10000000, "사업화 자금 최대 1억원" → 100000000). 갚아야 하는 돈(융자·대출·보증·팩토링·투자 유치)과 대출 이자 지원(이차보전)은 넣지 않는다. 보증료·보험료를 대신 내 주는 것은 넣는다. 보조금과 융자가 같이 있으면 보조금만. 받기만 하는 돈이 없으면(융자만, 교육·멘토링·공간만) null. 공모전 상금은 여기 넣지 않는다"""
 
 PROMPT = f"""아래는 공고 하나의 상세 페이지 본문과 첨부파일 내용이다. 오늘은 {TODAY}.
 그림 파일이 있으면 Read 로 직접 열어 본다(포스터에 접수기간·대상이 적힌 경우가 많다).
@@ -251,11 +254,12 @@ def save(conn, nid, d, text):
              apply_start = COALESCE(%s, apply_start), apply_end = COALESCE(%s, apply_end),
              category = %s, summary = %s, target = %s, target_types = %s, age_min = %s, age_max = %s,
              regions = %s, biz_age_max = %s, benefit = %s, amount_max = %s, documents = %s,
-             top_prize = %s, top_gift = %s, award = %s, top_prize_won = %s, top_gift_won = %s, detail = %s, detail_text = %s
+             top_prize = %s, top_gift = %s, award = %s, top_prize_won = %s, top_gift_won = %s,
+             total_prize = %s, total_prize_won = %s, support = %s, support_won = %s, detail = %s, detail_text = %s
            WHERE id = %s""",
         (d["is_recruit"], d["organizer"], to_date(d["apply_start"]), end,
          d["category"], d["summary"], d["target"], d["target_types"], d["age_min"], d["age_max"],
-         d["regions"], d["biz_age_max"], d["benefit"], d["amount_max"], d["documents"], d["top_prize"], d["top_gift"], d["award"], d["top_prize_won"], d["top_gift_won"],
+         d["regions"], d["biz_age_max"], d["benefit"], d["amount_max"], d["documents"], d["top_prize"], d["top_gift"], d["award"], d["top_prize_won"], d["top_gift_won"], d["total_prize"], d["total_prize_won"], d["support"], d["support_won"],
          json.dumps({k: d[k] for k in ("apply_text", "selection", "contact")}, ensure_ascii=False), text, nid))
 
 

@@ -18,6 +18,8 @@ services:
       - ./db/003_marks.sql:/docker-entrypoint-initdb.d/03-marks.sql:ro
       - ./db/004_prize.sql:/docker-entrypoint-initdb.d/04-prize.sql:ro
       - ./db/005_prize_won.sql:/docker-entrypoint-initdb.d/05-prize-won.sql:ro
+      - ./db/006_total_support.sql:/docker-entrypoint-initdb.d/06-total-support.sql:ro
+      - ./db/007_norm_title_keep_paren.sql:/docker-entrypoint-initdb.d/07-norm-title.sql:ro
 
 volumes:
   research-pgdata:
