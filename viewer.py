@@ -42,6 +42,8 @@ SELECT n.id, n.title, n.url, n.organizer, n.posted_at, n.apply_start, n.apply_en
        n.status, n.first_seen_at::date, n.is_recruit, n.category, n.summary, n.target, n.target_types,
        n.regions, n.age_min, n.age_max, n.biz_age_max, n.benefit,
        n.first_seen_at > now() - interval '24 hours', m.star, m.memo, n.top_prize, n.top_gift, n.award,
+       CASE WHEN n.top_prize_won IS NOT NULL OR n.top_gift_won IS NOT NULL
+            THEN coalesce(n.top_prize_won, 0) + coalesce(n.top_gift_won, 0) END,   -- 상금 순 정렬: 현금 + 금액이 적힌 상품
        (SELECT json_agg(json_build_object('name', s.name, 'url', l.url) ORDER BY s.name)
         FROM notice_links l JOIN sources s ON s.id = l.source_id WHERE l.notice_id = n.id) AS links
 FROM notices n LEFT JOIN marks m ON m.notice_id = n.id
@@ -66,8 +68,10 @@ label.tg{color:var(--mute);white-space:nowrap;cursor:pointer;padding:7px 12px;bo
 main{flex:1;min-height:0;padding:0 8px 40px;overflow:auto;scrollbar-gutter:stable}main::-webkit-scrollbar{width:10px;height:10px}main::-webkit-scrollbar-track,main::-webkit-scrollbar-corner{background:transparent}main::-webkit-scrollbar-thumb{background:transparent;border-radius:99px;border:2px solid transparent;background-clip:padding-box}main.scrolling::-webkit-scrollbar-thumb{background-color:color-mix(in srgb,var(--mute) 55%,transparent)}td.id{color:var(--mute);font-size:14px;line-height:25px;vertical-align:middle;font-variant-numeric:tabular-nums;font-family:ui-monospace,Menlo,monospace;width:1px;white-space:nowrap}
 table{width:100%;min-width:1600px;table-layout:fixed;border-collapse:collapse;background:var(--card);border-radius:12px;margin-top:12px}
 th,td{padding:9px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
-th:first-child{border-top-left-radius:12px}th:last-child{border-top-right-radius:12px}
-th{position:sticky;top:0;z-index:2;font-size:14px;color:var(--mute);font-weight:600;background:var(--card);cursor:pointer;user-select:none;white-space:nowrap}
+/* 열 머리 고정: 표 위 12px 틈을 바탕색으로 덮고(::before), 둥근 모서리 카드색은 ::after(z-index:-1, 글자 밑)로 그린다.
+   th 자체는 바탕색이라 모서리 바깥으로 스크롤되는 행이 비치지 않는다 */
+th::before{content:"";position:absolute;left:0;right:0;top:-12px;height:12px;background:var(--bg)}th::after{content:"";position:absolute;inset:0;background:var(--card);z-index:-1}th:first-child::after{border-top-left-radius:12px}th:last-child::after{border-top-right-radius:12px}
+th{position:sticky;top:12px;z-index:2;font-size:14px;color:var(--mute);font-weight:600;background:var(--bg);cursor:pointer;user-select:none;white-space:nowrap}
 td.org{min-width:150px}th.c,td.stc{text-align:center;width:1px}td.no,td.stc{vertical-align:middle}td.tags,td.site,td.date{width:1px;white-space:nowrap}td.tags>*,td.site .src{display:block;width:fit-content;margin:0 0 6px}td.tags>:last-child,td.site .src:last-child{margin-bottom:0}td.t a{color:var(--fg);text-decoration:none;font-weight:500}td.t a:hover{color:var(--accent);text-decoration:underline}
 td.m{color:var(--mute);font-size:14px}td.c{font-size:14px;line-height:1.5}
 .src{text-decoration:none;margin:1px 0;display:inline-block;font-size:13px;padding:1px 8px;border-radius:99px;border:1px solid var(--line);color:var(--mute);white-space:nowrap}
@@ -105,7 +109,7 @@ td.no,th.no{padding-left:2px;padding-right:2px;color:var(--mute);font-size:14px;
   </div>
 </header>
 <main><table><thead><tr>
-  <th class="no">#</th><th data-k="id">ID</th><th data-k="star" class="c">★</th><th data-k="apply_end">마감</th><th>분야</th><th data-k="title">공고명</th><th>1등 시상</th><th>지원</th><th>대상</th><th data-k="organizer" class="hide-sm">기관</th>
+  <th class="no">#</th><th data-k="id">ID</th><th data-k="star" class="c">★</th><th data-k="apply_end">마감</th><th>분야</th><th data-k="title">공고명</th><th data-k="prize_value" title="누르면 상금 큰 순(현금 + 금액이 적힌 상품)">1등 시상</th><th>지원</th><th>대상</th><th data-k="organizer" class="hide-sm">기관</th>
   <th class="hide-sm">사이트</th><th data-k="posted_at" class="hide-sm">등록</th>
 </tr></thead><tbody id="rows"></tbody></table></main>
 <script>
@@ -162,7 +166,7 @@ function render(){
       <td class="m hide-sm org">${esc(r.organizer)}</td><td class="hide-sm site">${[...new Map(r.links.map(l=>[l.name,l])).values()].map(l=>`<a class="src" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.name)}</a>`).join(' ')}</td>
       <td class="m hide-sm date">${r.posted_at||''}</td></tr>`}).join('');
 }
-document.querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{const k=th.dataset.k; asc=sortKey===k?!asc:true; sortKey=k; render()});
+document.querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{const k=th.dataset.k; asc=sortKey===k?!asc:k!=='prize_value'; /* 상금은 처음 누르면 큰 순 */ sortKey=k; render()});
 ['#q','#star','#onlynew','#soon','#unknown','#norec'].forEach(s=>$(s).addEventListener('input',render));
 const save=r=>fetch('/api/mark',{method:'POST',body:JSON.stringify({id:r.id,star:r.star,memo:r.memo})});
 $('#rows').addEventListener('click',e=>{const act=e.target.dataset.act; if(!act)return;
@@ -190,7 +194,7 @@ fetch('/api/notices').then(r=>r.json()).then(d=>{data=d;
 
 COLS = ["id", "title", "url", "organizer", "posted_at", "apply_start", "apply_end", "status", "first_seen", "is_recruit",
         "category", "summary", "target", "target_types", "regions", "age_min", "age_max", "biz_age_max", "benefit",
-        "is_new", "star", "memo", "top_prize", "top_gift", "award", "links"]
+        "is_new", "star", "memo", "top_prize", "top_gift", "award", "prize_value", "links"]
 
 
 class H(BaseHTTPRequestHandler):
