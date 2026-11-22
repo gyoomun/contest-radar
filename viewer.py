@@ -122,12 +122,23 @@ function lim(r){
 }
 // 여러 개 고르기: 고른 값 목록. 아무것도 안 고르면 전체
 const picked=sel=>[...document.querySelectorAll(sel+' input:checked')].map(i=>i.value);
-document.querySelectorAll('details.ms').forEach(d=>d.addEventListener('change',()=>{
-  const v=picked('#'+d.id); d.dataset.n=v.length;
-  d.querySelector('summary').textContent=!v.length?'전체 '+d.dataset.t:v.length===1?v[0]:`${d.dataset.t} ${v.length}개`; render()}));
+const label=d=>{const v=picked('#'+d.id); d.dataset.n=v.length;
+  d.querySelector('summary').textContent=!v.length?'전체 '+d.dataset.t:v.length===1?v[0]:`${d.dataset.t} ${v.length}개`};
+document.querySelectorAll('details.ms').forEach(d=>d.addEventListener('change',()=>{label(d); render()}));
+// 필터·정렬을 이 기기(브라우저)에 저장해 새로고침해도 남게. 저장소를 못 쓰면(시크릿 등) 그냥 안 남는다
+const FKEY='radar-filters', TOGGLES=['#star','#onlynew','#soon','#unknown','#norec'];
+function saveF(){try{localStorage.setItem(FKEY,JSON.stringify({q:$('#q').value, sortKey, asc,
+  tg:Object.fromEntries(TOGGLES.map(s=>[s,$(s).checked])),
+  ms:Object.fromEntries([...document.querySelectorAll('details.ms')].map(d=>[d.id,picked('#'+d.id)]))}))}catch(e){}}
+function loadF(){let f=null; try{f=JSON.parse(localStorage.getItem(FKEY))}catch(e){} if(!f)return;
+  $('#q').value=f.q||''; if(f.sortKey){sortKey=f.sortKey; asc=f.asc}
+  for(const [s,v] of Object.entries(f.tg||{})) if($(s)) $(s).checked=v;
+  document.querySelectorAll('details.ms').forEach(d=>{const v=(f.ms||{})[d.id]||[];
+    d.querySelectorAll('input').forEach(i=>i.checked=v.includes(i.value)); label(d)})}
 document.addEventListener('click',e=>document.querySelectorAll('details.ms[open]').forEach(d=>{if(!d.contains(e.target))d.open=false}));
 let scrollT; $('main').addEventListener('scroll',e=>{e.target.classList.add('scrolling'); clearTimeout(scrollT); scrollT=setTimeout(()=>e.target.classList.remove('scrolling'),900)});
 function render(){
+  saveF();
   const words=$('#q').value.trim().toLowerCase().split(/\s+/).filter(Boolean), src=picked('#src'),
     cat=picked('#cat'), tt=picked('#tt'), rg=picked('#rg'), any=(have,want)=>!want.length||(have||[]).some(v=>want.includes(v));
   let rows=data.filter(r=>any(r.links.map(l=>l.name),src)
@@ -174,7 +185,7 @@ fetch('/api/notices').then(r=>r.json()).then(d=>{data=d;
   opts('#src',d.flatMap(r=>r.links.map(l=>l.name))); opts('#cat',d.flatMap(r=>r.category||[]));
   opts('#tt',d.flatMap(r=>r.target_types||[])); opts('#rg',d.flatMap(r=>r.regions||[]));
   const done=d.filter(r=>r.status==='detailed').length; $('#prog').textContent=done<d.length?` · 상세 읽음 ${done}/${d.length}`:'';
-  render()});
+  loadF(); render()});
 </script></body></html>"""
 
 COLS = ["id", "title", "url", "organizer", "posted_at", "apply_start", "apply_end", "status", "first_seen", "is_recruit",
