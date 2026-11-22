@@ -41,7 +41,7 @@ SQL = """
 SELECT n.id, n.title, n.url, n.organizer, n.posted_at, n.apply_start, n.apply_end,
        n.status, n.first_seen_at::date, n.is_recruit, n.category, n.summary, n.target, n.target_types,
        n.regions, n.age_min, n.age_max, n.biz_age_max, n.benefit,
-       n.first_seen_at > now() - interval '24 hours', m.star, m.memo, n.top_prize, n.top_gift, n.award,
+       n.first_seen_at > now() - interval '24 hours', m.star, m.memo, n.top_prize, n.top_gift, n.award, n.total_prize, n.total_prize_won, n.support, n.support_won,
        CASE WHEN n.top_prize_won IS NOT NULL OR n.top_gift_won IS NOT NULL
             THEN coalesce(n.top_prize_won, 0) + coalesce(n.top_gift_won, 0) END,   -- 상금 순 정렬: 현금 + 금액이 적힌 상품
        (SELECT json_agg(json_build_object('name', s.name, 'url', l.url) ORDER BY s.name)
@@ -66,7 +66,7 @@ details.ms{position:relative}details.ms>summary::-webkit-details-marker{display:
 details.ms .pop{position:absolute;z-index:5;top:calc(100% + 4px);left:0;min-width:100%;max-height:60vh;overflow:auto;padding:6px;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.35)}details.ms .pop label{display:flex;gap:8px;align-items:center;padding:6px 8px;border-radius:6px;white-space:nowrap;cursor:pointer;font-size:15px}details.ms .pop label:hover{background:var(--line)}details.ms[data-n]:not([data-n="0"])>summary{border-color:var(--accent);color:var(--accent)}
 label.tg{color:var(--mute);white-space:nowrap;cursor:pointer;padding:7px 12px;border:1px solid var(--line);border-radius:99px;font-size:14px;user-select:none}label.tg input{display:none}label.tg:has(input:checked){color:var(--accent);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}input[type=search]{flex:1 1 200px;max-width:360px}
 main{flex:1;min-height:0;padding:0 8px 40px;overflow:auto;scrollbar-gutter:stable}main::-webkit-scrollbar{width:10px;height:10px}main::-webkit-scrollbar-track,main::-webkit-scrollbar-corner{background:transparent}main::-webkit-scrollbar-thumb{background:transparent;border-radius:99px;border:2px solid transparent;background-clip:padding-box}main.scrolling::-webkit-scrollbar-thumb{background-color:color-mix(in srgb,var(--mute) 55%,transparent)}td.id{color:var(--mute);font-size:14px;line-height:25px;vertical-align:middle;font-variant-numeric:tabular-nums;font-family:ui-monospace,Menlo,monospace;width:1px;white-space:nowrap}
-table{width:100%;min-width:1600px;table-layout:fixed;border-collapse:collapse;background:var(--card);border-radius:12px;margin-top:12px}
+table{width:100%;min-width:1930px;table-layout:fixed;border-collapse:collapse;background:var(--card);border-radius:12px;margin-top:12px}
 th,td{padding:9px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
 /* 열 머리 고정: 표 위 12px 틈을 바탕색으로 덮고(::before), 둥근 모서리 카드색은 ::after(z-index:-1, 글자 밑)로 그린다.
    th 자체는 바탕색이라 모서리 바깥으로 스크롤되는 행이 비치지 않는다 */
@@ -85,7 +85,8 @@ td.m{color:var(--mute);font-size:14px}td.c{font-size:14px;line-height:1.5}
 #warn{margin:8px 0 0;padding:8px 12px;border-radius:8px;background:color-mix(in srgb,var(--hot) 12%,transparent);color:var(--hot);font-size:15px}#warn:empty{display:none}
 .run{margin-left:auto;padding:7px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg);font:inherit;cursor:pointer}.run:disabled{opacity:.5;cursor:default}
 /* 열 폭 고정: 검색·새로고침 때 내용에 따라 폭이 다시 계산돼 헤더가 움찔거리지 않게. 공고명이 남는 폭을 가진다 */
-thead th:nth-child(1){width:40px}thead th:nth-child(2){width:48px}thead th:nth-child(3){width:40px}thead th:nth-child(4){width:92px}thead th:nth-child(5){width:118px}thead th:nth-child(7){width:190px}thead th:nth-child(8){width:211px}thead th:nth-child(9){width:225px}thead th:nth-child(10){width:140px}thead th:nth-child(11){width:152px}thead th:nth-child(12){width:96px}td.pz b{display:block;font-size:16px;color:var(--fg)}td.pz .g{display:block;font-size:14px;margin-top:2px}td.pz .aw{display:block;font-size:14px;margin-top:4px;color:var(--warn)}td{overflow-wrap:anywhere}
+thead th:nth-child(1){width:40px}thead th:nth-child(2){width:48px}thead th:nth-child(3){width:40px}thead th:nth-child(4){width:92px}thead th:nth-child(5){width:118px}thead th:nth-child(7){width:190px}thead th:nth-child(8){width:150px}thead th:nth-child(9){width:180px}thead th:nth-child(10){width:211px}thead th:nth-child(11){width:225px}thead th:nth-child(12){width:140px}thead th:nth-child(13){width:152px}thead th:nth-child(14){width:96px}td.pz b{display:block;font-size:16px;color:var(--fg)}td.pz .g{display:block;font-size:14px;margin-top:2px}td.pz .aw{display:block;font-size:14px;margin-top:4px;color:var(--warn)}td{overflow-wrap:anywhere}
+th .ar{margin-left:4px;font-size:11px;color:var(--accent)}
 td.no,th.no{padding-left:2px;padding-right:2px;color:var(--mute);font-size:14px;line-height:25px;text-align:center;width:1%;white-space:nowrap;font-variant-numeric:tabular-nums}
 @media (max-width:700px){.hide-sm{display:none}}
 </style></head><body>
@@ -109,12 +110,12 @@ td.no,th.no{padding-left:2px;padding-right:2px;color:var(--mute);font-size:14px;
   </div>
 </header>
 <main><table><thead><tr>
-  <th class="no">#</th><th data-k="id">ID</th><th data-k="star" class="c">★</th><th data-k="apply_end">마감</th><th>분야</th><th data-k="title">공고명</th><th data-k="prize_value" title="누르면 상금 큰 순(현금 + 금액이 적힌 상품)">1등 시상</th><th>지원</th><th>대상</th><th data-k="organizer" class="hide-sm">기관</th>
+  <th class="no">#</th><th data-k="id">ID</th><th data-k="star" class="c">★</th><th data-k="apply_end">마감</th><th>분야</th><th data-k="title">공고명</th><th data-k="prize_value" title="누르면 상금 큰 순(현금 + 금액이 적힌 상품)">1등 상금</th><th data-k="total_prize_won" title="누르면 총상금 큰 순">총상금</th><th data-k="support_won" title="누르면 지원금 큰 순(한 곳이 받는 최대)">지원금</th><th>지원</th><th>대상</th><th data-k="organizer" class="hide-sm">기관</th>
   <th class="hide-sm">사이트</th><th data-k="posted_at" class="hide-sm">등록</th>
 </tr></thead><tbody id="rows"></tbody></table></main>
 <script>
 const $=s=>document.querySelector(s), esc=s=>(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-let data=[], sortKey='apply_end', asc=true;
+let data=[], sortKey=null, asc=true;   /* sortKey=null 이면 기본 정렬(마감 가까운 순) */
 const today=new Date(new Date().toDateString());
 const dday=d=>d?Math.round((new Date(d)-today)/864e5):null;
 const cats=r=>(r.category||[]).map(c=>`<span class="cat">${esc(c)}</span>`).join('');
@@ -135,7 +136,7 @@ function saveF(){try{localStorage.setItem(FKEY,JSON.stringify({q:$('#q').value, 
   tg:Object.fromEntries(TOGGLES.map(s=>[s,$(s).checked])),
   ms:Object.fromEntries([...document.querySelectorAll('details.ms')].map(d=>[d.id,picked('#'+d.id)]))}))}catch(e){}}
 function loadF(){let f=null; try{f=JSON.parse(localStorage.getItem(FKEY))}catch(e){} if(!f)return;
-  $('#q').value=f.q||''; if(f.sortKey){sortKey=f.sortKey; asc=f.asc}
+  $('#q').value=f.q||''; sortKey=f.sortKey??null; asc=f.asc??true;
   for(const [s,v] of Object.entries(f.tg||{})) if($(s)) $(s).checked=v;
   document.querySelectorAll('details.ms').forEach(d=>{const v=(f.ms||{})[d.id]||[];
     d.querySelectorAll('input').forEach(i=>i.checked=v.includes(i.value)); label(d)})}
@@ -154,7 +155,9 @@ function render(){
     &&(r.apply_end||$('#unknown').checked)
     &&(!$('#soon').checked||(r.apply_end&&dday(r.apply_end)<=7))
     &&words.every(w=>w===String(r.id)||[r.title,r.organizer,r.summary,r.target,...(r.target_types||[]),...(r.regions||[]),r.top_prize,r.top_gift,r.award,r.memo].join(' ').toLowerCase().includes(w)));
-  rows.sort((a,b)=>{const x=a[sortKey]??'',y=b[sortKey]??''; if(!x&&y)return 1; if(x&&!y)return -1; return (x<y?-1:x>y?1:0)*(asc?1:-1)});
+  const sk=sortKey||'apply_end', up=sortKey?asc:true;
+  rows.sort((a,b)=>{const x=a[sk]??'',y=b[sk]??''; if(!x&&y)return 1; if(x&&!y)return -1; return (x<y?-1:x>y?1:0)*(up?1:-1)});
+  document.querySelectorAll('th[data-k]').forEach(th=>th.querySelector('.ar').textContent=th.dataset.k===sortKey?(asc?'▲':'▼'):'');
   $('#count').textContent=`${rows.length}건 / 전체 ${data.length}건`;
   $('#rows').innerHTML=rows.map((r,i)=>{const d=dday(r.apply_end);
     const cls=d==null?'none':d<=3?'hot':d<=7?'warn':'';
@@ -162,11 +165,15 @@ function render(){
       <td class="tags">${r.is_new?'<span class="new">NEW</span>':''}${cats(r)}</td>
       <td class="t"><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a><span class="mbtn" data-act="memo">${r.memo?'메모 고치기':'메모'}</span>${r.summary?`<div class="sub">${esc(r.summary)}</div>`:''}${r.memo?`<div class="memo">${esc(r.memo)}</div>`:''}</td>
       <td class="c pz">${r.top_prize?`<b>${esc(r.top_prize)}</b>`:''}${r.top_gift?`<span class="g">${esc(r.top_gift)}</span>`:''}${r.award?`<span class="aw">${esc(r.award)}</span>`:''}</td>
+      <td class="c pz">${r.total_prize?`<b>${esc(r.total_prize)}</b>`:''}</td><td class="c pz">${r.support?`<b>${esc(r.support)}</b>`:''}</td>
       <td class="c">${esc(r.benefit)}</td><td class="c">${esc(r.target)}${lim(r)}</td>
       <td class="m hide-sm org">${esc(r.organizer)}</td><td class="hide-sm site">${[...new Map(r.links.map(l=>[l.name,l])).values()].map(l=>`<a class="src" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.name)}</a>`).join(' ')}</td>
       <td class="m hide-sm date">${r.posted_at||''}</td></tr>`}).join('');
 }
-document.querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{const k=th.dataset.k; asc=sortKey===k?!asc:k!=='prize_value'; /* 상금은 처음 누르면 큰 순 */ sortKey=k; render()});
+/* 열 머리를 누를 때마다 처음 방향 → 반대 방향 → 정렬 취소. 상금·총상금·지원금은 처음 누르면 큰 순 */
+document.querySelectorAll('th[data-k]').forEach(th=>th.insertAdjacentHTML('beforeend','<span class="ar"></span>'));
+document.querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{const k=th.dataset.k, first=!['prize_value','total_prize_won','support_won'].includes(k);
+  if(sortKey!==k){sortKey=k; asc=first} else if(asc===first) asc=!first; else sortKey=null; render()});
 ['#q','#star','#onlynew','#soon','#unknown','#norec'].forEach(s=>$(s).addEventListener('input',render));
 const save=r=>fetch('/api/mark',{method:'POST',body:JSON.stringify({id:r.id,star:r.star,memo:r.memo})});
 $('#rows').addEventListener('click',e=>{const act=e.target.dataset.act; if(!act)return;
@@ -194,7 +201,7 @@ fetch('/api/notices').then(r=>r.json()).then(d=>{data=d;
 
 COLS = ["id", "title", "url", "organizer", "posted_at", "apply_start", "apply_end", "status", "first_seen", "is_recruit",
         "category", "summary", "target", "target_types", "regions", "age_min", "age_max", "biz_age_max", "benefit",
-        "is_new", "star", "memo", "top_prize", "top_gift", "award", "prize_value", "links"]
+        "is_new", "star", "memo", "top_prize", "top_gift", "award", "total_prize", "total_prize_won", "support", "support_won", "prize_value", "links"]
 
 
 class H(BaseHTTPRequestHandler):
