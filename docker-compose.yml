@@ -1,0 +1,21 @@
+name: contest-radar
+services:
+  db:
+    image: postgres:17
+    container_name: research-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: research
+      POSTGRES_USER: research
+      POSTGRES_PASSWORD: research # 로컬 전용
+      TZ: Asia/Seoul
+    ports:
+      - "15434:5432"
+    volumes:
+      - research-pgdata:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./db/002_links_detail.sql:/docker-entrypoint-initdb.d/02-links-detail.sql:ro
+
+volumes:
+  research-pgdata:
+    name: 06research_research-pgdata # 폴더를 옮기기 전에 만든 볼륨. 이름을 바꾸면 빈 DB로 뜬다
