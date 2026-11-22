@@ -283,6 +283,8 @@ def merge_duplicates(conn, since):
     for dup in [x for x in parent if root(x) != x]:
         keep = root(dup)
         conn.execute("UPDATE notice_links SET notice_id = %s WHERE notice_id = %s", (keep, dup))
+        conn.execute("""UPDATE marks SET notice_id = %s WHERE notice_id = %s
+                        AND NOT EXISTS (SELECT 1 FROM marks WHERE notice_id = %s)""", (keep, dup, keep))  # 관심·메모 옮기기
         # 남기는 공고에 빈 칸이 있으면 합쳐지는 공고 값으로 채운다
         conn.execute("""UPDATE notices k SET apply_end = COALESCE(k.apply_end, d.apply_end),
                           apply_start = COALESCE(k.apply_start, d.apply_start),

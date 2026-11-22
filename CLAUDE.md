@@ -6,13 +6,17 @@
 - DB: `docker compose up -d` (컨테이너 research-postgres, 포트 15434, db/user/pw `research`)
 - `uv run collect.py [사이트이름…]` 목록 수집 → 끝에 중복 묶기. `--merge-all` 은 전체를 다시 묶는다
 - `uv run detail.py [--id N]` status new·failed 인 공고의 상세를 읽는다. 실패는 failed 로 남고 다음 실행에 다시 읽는다
-- 매일 07:00 launchd 가 `daily.sh` 를 돌린다: compose up → collect.py → detail.py 2번(일시 실패 재시도). 잠자고 있었으면 깨어날 때 돈다
+- launchd 가 1시간마다·로그인 때 `daily.sh` 를 부르고, 08:30 이 지났고 오늘 아직 안 돌았을 때만 돈다(일지 자동 정리와 같은 시각. 맥이 꺼져 있던 날도 켜진 뒤 돈다): compose up → collect.py → detail.py 2번(일시 실패 재시도). 끝까지 돈 날짜는 `~/Library/Logs/contest-radar/last-done`
+  - 뷰어의 [지금 수집] 버튼은 `daily.sh --force` 로 시각·날짜 검사 없이 바로 돌린다
   - 설치: `ln -sf $PWD/launchd/com.gyoomun.contest-radar.plist ~/Library/LaunchAgents/` 후 `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.gyoomun.contest-radar.plist`
   - 지금 돌리기: `launchctl kickstart -k gui/$(id -u)/com.gyoomun.contest-radar` / 끄기: `launchctl bootout gui/$(id -u)/com.gyoomun.contest-radar`
   - 로그: `~/Library/Logs/contest-radar/YYYY-MM-DD.log`. 겹쳐 돌지 않게 `/tmp/contest-radar.lock` 폴더로 잠근다(죽은 실행이 남기면 지운다)
-  - 켜진 사이트가 이번 실행에서 실패·0건이거나 단계가 실패하면 맥 알림(osascript)을 띄운다
+  - 사이트가 실패하거나 단계가 실패하면 맥 알림(osascript)을 띄운다(대리님이 못 볼 때가 있다). 뷰어 맨 위에도 마지막 실행 실패 사이트와 7일째 새 글 없는 사이트를 띄운다
   - plist 의 PATH 에 claude·uv·docker·pdftotext 폴더를 박아 두었다. 어느 하나 위치가 바뀌면 plist 를 고치고 bootout·bootstrap 한다
 - `uv run viewer.py` → http://127.0.0.1:8765. PAGE(HTML)를 고치면 뷰어를 다시 켜야 반영된다. 데이터는 새로고침만
+  - 공고를 누르면 원문 페이지를 연다. 우리 화면의 요약·대상·지원은 참고용이고 확인은 원문으로 한다(대리님 결정)
+  - 관심(★)·메모는 marks 테이블. 묶기로 공고가 합쳐지면 남는 공고로 옮긴다. NEW 는 first_seen_at 24시간 이내
+  - PC 가 중심이다. 폰은 나중에 필요한 기능만 추려 낸다. 글자는 본문 16px·보조 14px 아래로 내리지 않는다(작으면 대리님이 바로 짜증)
 
 ## 구조
 - collect.py: 사이트별 목록 수집(SITES 딕셔너리, sources 테이블의 list_url 은 참고용), 중복 묶기(merge_duplicates)
