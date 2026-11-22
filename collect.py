@@ -11,6 +11,8 @@ import ssl
 import subprocess
 import sys
 import threading
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import date, datetime, timedelta
@@ -36,9 +38,18 @@ def fetch(url, data=None, headers=None):
     req = urllib.request.Request(url, headers={"User-Agent": UA, **(headers or {})})
     if data is not None:
         req.data = urllib.parse.urlencode(data).encode()
-    with urllib.request.urlopen(req, timeout=30, context=ctx) as r:
-        raw = r.read()
-        charset = r.headers.get_content_charset()
+    for attempt in range(3):   # 시간 초과·접속 끊김은 사이트가 잠깐 느린 경우가 많아 5초·10초 쉬고 두 번 더 해 본다
+        try:
+            with urllib.request.urlopen(req, timeout=30, context=ctx) as r:
+                raw = r.read()
+                charset = r.headers.get_content_charset()
+            break
+        except urllib.error.HTTPError:
+            raise   # 404·500 같은 서버 응답은 다시 해도 같다
+        except (urllib.error.URLError, TimeoutError, ConnectionError):
+            if attempt == 2:
+                raise
+            time.sleep(5 * (attempt + 1))
     if not charset:
         m = re.search(rb'charset=["\']?([\w-]+)', raw[:3000])
         charset = m.group(1).decode() if m else "utf-8"
