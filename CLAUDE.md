@@ -1,11 +1,17 @@
 # contest-radar
 
-공모전·지원사업 공고를 10개 사이트에서 모아 Postgres에 넣고, 상세·첨부를 `claude -p`(haiku)로 읽어 참가자격을 컬럼으로 만든 뒤 뷰어로 본다. 팀 프로필로 참가 가능 여부를 가리는 단계(judgments 테이블)와 매일 예약 실행은 아직 없다.
+공모전·지원사업 공고를 10개 사이트에서 모아 Postgres에 넣고, 상세·첨부를 `claude -p`(haiku)로 읽어 참가자격을 컬럼으로 만든 뒤 뷰어로 본다. 팀 프로필로 참가 가능 여부를 가리는 단계(judgments 테이블)는 아직 없다.
 
 ## 실행·반영
 - DB: `docker compose up -d` (컨테이너 research-postgres, 포트 15434, db/user/pw `research`)
 - `uv run collect.py [사이트이름…]` 목록 수집 → 끝에 중복 묶기. `--merge-all` 은 전체를 다시 묶는다
 - `uv run detail.py [--id N]` status new·failed 인 공고의 상세를 읽는다. 실패는 failed 로 남고 다음 실행에 다시 읽는다
+- 매일 07:00 launchd 가 `daily.sh` 를 돌린다: compose up → collect.py → detail.py 2번(일시 실패 재시도). 잠자고 있었으면 깨어날 때 돈다
+  - 설치: `ln -sf $PWD/launchd/com.gyoomun.contest-radar.plist ~/Library/LaunchAgents/` 후 `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.gyoomun.contest-radar.plist`
+  - 지금 돌리기: `launchctl kickstart -k gui/$(id -u)/com.gyoomun.contest-radar` / 끄기: `launchctl bootout gui/$(id -u)/com.gyoomun.contest-radar`
+  - 로그: `~/Library/Logs/contest-radar/YYYY-MM-DD.log`. 겹쳐 돌지 않게 `/tmp/contest-radar.lock` 폴더로 잠근다(죽은 실행이 남기면 지운다)
+  - 켜진 사이트가 이번 실행에서 실패·0건이거나 단계가 실패하면 맥 알림(osascript)을 띄운다
+  - plist 의 PATH 에 claude·uv·docker·pdftotext 폴더를 박아 두었다. 어느 하나 위치가 바뀌면 plist 를 고치고 bootout·bootstrap 한다
 - `uv run viewer.py` → http://127.0.0.1:8765. PAGE(HTML)를 고치면 뷰어를 다시 켜야 반영된다. 데이터는 새로고침만
 
 ## 구조
@@ -26,6 +32,7 @@
 - 인천테크노파크는 인증서 검증을 끈다(NO_VERIFY). 한때 파이썬에서 인증서 오류가 났다
 - 창조경제혁신센터 상세 주소에는 `&kind=all` 이 있어야 다른 지역 글이 열린다
 - 기업마당 RSS 는 crtfcKey 없이는 항목이 비어 HTML 목록을 쓴다. 첨부 링크는 downloadToken 이 붙은 href 그대로 써야 한다
+- runs.found 는 html_site 를 쓰는 사이트(기업마당·K-Startup 등 7곳)에선 '처음 보는 글 수'다. 1쪽에 새 글이 없으면 0 이라 매일 알림의 0건이 대부분 정상이다
 - 대티즌 키는 사이트 JS 에서 그때그때 읽는다(공개 publishable 키). 코드에 박지 않는다
 
 ## 남은 일
