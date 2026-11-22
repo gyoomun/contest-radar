@@ -1,6 +1,9 @@
 """공고 뷰어: uv run viewer.py → http://127.0.0.1:8765"""
+import hashlib
+import hmac
 import json
 import os
+import urllib.parse
 import subprocess
 from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -10,6 +13,17 @@ import psycopg
 from collect import DSN
 
 PORT = 8765
+HERE = os.path.dirname(os.path.abspath(__file__))
+# 바깥(클라우드플레어 터널)에서 들어오면 비밀번호를 묻는다. 비밀번호는 .env 의 RADAR_PASSWORD (저장소가 public 이라 코드에 두지 않는다)
+ENV = dict(l.strip().split("=", 1) for l in open(os.path.join(HERE, ".env")) if "=" in l) if os.path.exists(os.path.join(HERE, ".env")) else {}
+PASSWORD = os.environ.get("RADAR_PASSWORD") or ENV.get("RADAR_PASSWORD", "")
+TOKEN = hashlib.sha256(f"contest-radar:{PASSWORD}".encode()).hexdigest()
+LOGIN = """<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>공고 모아보기</title><style>body{margin:0;display:grid;place-items:center;height:100vh;background:#141517;color:#e9ecef;font:16px -apple-system,"Apple SD Gothic Neo",sans-serif}
+form{display:flex;flex-direction:column;gap:12px;width:280px}input,button{padding:12px;border-radius:10px;border:1px solid #2c2e33;background:#1f2023;color:inherit;font:inherit}
+button{background:#1c7ed6;border:0;cursor:pointer}p{color:#ff6b6b;margin:0;font-size:14px}</style></head>
+<body><form method="post" action="/login"><h2 style="margin:0 0 8px">공고 모아보기</h2>
+<input type="password" name="pw" placeholder="비밀번호" autofocus>%s<button>들어가기</button></form></body></html>"""
 LOCK = "/tmp/contest-radar.lock"   # daily.sh 가 도는 동안 있는 폴더
 DAILY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "daily.sh")
 
@@ -166,7 +180,15 @@ COLS = ["id", "title", "url", "organizer", "posted_at", "apply_start", "apply_en
 
 
 class H(BaseHTTPRequestHandler):
+    def authed(self):
+        if "Cf-Connecting-Ip" not in self.headers:   # 이 맥에서 바로 연 것(터널을 거치지 않음)
+            return True
+        c = dict(p.strip().split("=", 1) for p in (self.headers.get("Cookie") or "").split(";") if "=" in p)
+        return bool(PASSWORD) and hmac.compare_digest(c.get("radar", ""), TOKEN)
+
     def do_GET(self):
+        if not self.authed():
+            return self._send(LOGIN % "", "text/html") if self.path == "/" else self.send_error(401)
         if self.path == "/api/notices":
             with psycopg.connect(DSN) as conn:
                 rows = [dict(zip(COLS, r)) for r in conn.execute(SQL)]
@@ -187,6 +209,17 @@ class H(BaseHTTPRequestHandler):
             self.send_error(404)
 
     def do_POST(self):
+        if self.path == "/login":
+            pw = urllib.parse.parse_qs(self.rfile.read(int(self.headers.get("Content-Length") or 0)).decode()).get("pw", [""])[0]
+            if PASSWORD and hmac.compare_digest(pw, PASSWORD):
+                self.send_response(303)
+                self.send_header("Set-Cookie", f"radar={TOKEN}; Path=/; Max-Age=31536000; HttpOnly; Secure; SameSite=Lax")
+                self.send_header("Location", "/")
+                self.end_headers()
+                return
+            return self._send(LOGIN % "<p>비밀번호가 틀렸습니다</p>", "text/html")
+        if not self.authed():
+            return self.send_error(401)
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
         if self.path == "/api/mark":
             with psycopg.connect(DSN) as conn:

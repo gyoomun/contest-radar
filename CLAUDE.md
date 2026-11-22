@@ -13,7 +13,10 @@
   - 로그: `~/Library/Logs/contest-radar/YYYY-MM-DD.log`. 겹쳐 돌지 않게 `/tmp/contest-radar.lock` 폴더로 잠근다(죽은 실행이 남기면 지운다)
   - 사이트가 실패하거나 단계가 실패하면 맥 알림(osascript)을 띄운다(대리님이 못 볼 때가 있다). 뷰어 맨 위에도 마지막 실행 실패 사이트와 7일째 새 글 없는 사이트를 띄운다
   - plist 의 PATH 에 claude·uv·docker·pdftotext 폴더를 박아 두었다. 어느 하나 위치가 바뀌면 plist 를 고치고 bootout·bootstrap 한다
-- `uv run viewer.py` → http://127.0.0.1:8765. PAGE(HTML)를 고치면 뷰어를 다시 켜야 반영된다. 데이터는 새로고침만
+- 뷰어: launchd `com.gyoomun.contest-radar-viewer`(launchd/ 의 plist, KeepAlive)가 늘 띄워 둔다 → http://127.0.0.1:8765, 밖에서는 https://radar.gyoomun.com
+  - viewer.py 를 고치면 `launchctl kickstart -k gui/$(id -u)/com.gyoomun.contest-radar-viewer` 로 다시 켜야 반영된다. 데이터는 새로고침만. 로그는 `~/Library/Logs/contest-radar/viewer.log`
+  - radar.gyoomun.com 은 HQ 와 같은 클라우드플레어 터널(`~/.cloudflared/config.yml` ingress, 개인 계정 gyoomun.com 의 CNAME)이다. ingress 를 고치면 `launchctl kickstart -k gui/$(id -u)/com.cloudflare.cloudflared` (HQ 접속도 몇 초 끊긴다)
+  - 터널로 들어온 요청(Cf-Connecting-Ip 헤더)만 비밀번호를 묻는다. 비밀번호는 `.env` 의 RADAR_PASSWORD(저장소가 public 이라 git 에서 뺐다). 맞으면 쿠키 radar 를 1년 심는다. 바꾸면 모두 다시 로그인한다
   - 공고를 누르면 원문 페이지를 연다. 우리 화면의 요약·대상·지원은 참고용이고 확인은 원문으로 한다(대리님 결정)
   - 관심(★)·메모는 marks 테이블. 묶기로 공고가 합쳐지면 남는 공고로 옮긴다. NEW 는 first_seen_at 24시간 이내
   - PC 가 중심이다. 폰은 나중에 필요한 기능만 추려 낸다. 글자는 본문 16px·보조 14px 아래로 내리지 않는다(작으면 대리님이 바로 짜증)
