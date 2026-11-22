@@ -16,6 +16,7 @@ services:
       - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
       - ./db/002_links_detail.sql:/docker-entrypoint-initdb.d/02-links-detail.sql:ro
       - ./db/003_marks.sql:/docker-entrypoint-initdb.d/03-marks.sql:ro
+      - ./db/004_prize.sql:/docker-entrypoint-initdb.d/04-prize.sql:ro
 
 volumes:
   research-pgdata:

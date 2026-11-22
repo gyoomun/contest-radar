@@ -30,7 +30,7 @@ MAX_FILES = 3                  # 공고당 첨부 최대 개수
 MAX_BYTES = 20 * 1024 * 1024   # 첨부 하나 최대 크기
 MAX_TEXT = 60000               # Claude 에 넘길 글자 수 상한
 
-CATEGORIES = ["창업·사업화", "R&D·기술", "IT·SW·AI", "아이디어·기획", "디자인", "영상·사진", "글·문학", "미술·예술",
+CATEGORIES = ["창업·사업화", "입주·공간", "R&D·기술", "IT·SW·AI", "아이디어·기획", "디자인", "영상·사진", "글·문학", "미술·예술",
               "음악·공연", "마케팅·광고", "사회·공익", "교육·강연", "대외활동·서포터즈", "채용·인력", "행사·네트워킹", "기타"]
 TARGET_TYPES = ["개인", "대학생", "청년", "예비창업자", "창업기업", "중소기업", "소상공인", "대학", "연구기관", "단체·법인", "누구나"]
 REGIONS = ["전국", "서울", "부산", "대구", "인천", "광주", "대전", "울산", "세종", "경기", "강원", "충북", "충남",
@@ -50,12 +50,18 @@ SCHEMA = {
         "regions": {"type": "array", "items": {"enum": REGIONS}},
         "biz_age_max": {"type": ["number", "null"]},
         "benefit": S, "amount_max": I, "documents": S,
+        "top_prize": S, "top_gift": S, "award": S,
         "selection": S, "contact": S,
     },
     "required": ["is_recruit", "organizer", "apply_start", "apply_end", "apply_text", "category", "summary", "target",
                  "target_types", "age_min", "age_max", "regions", "biz_age_max", "benefit", "amount_max", "documents",
-                 "selection", "contact"],
+                 "top_prize", "top_gift", "award", "selection", "contact"],
 }
+
+PRIZE_RULES = """- top_prize: 1등(대상·최우수상 등 가장 높은 상)이 받는 현금 상금. 상 이름과 금액을 짧게 (예: "대상 500만원"). 현금이 없으면 null
+- top_gift: 1등이 받는 상품권·물품 (예: "상품권 30만원", "태블릿 PC"). 없으면 null
+- award: 가장 높은 상의 상격·상장 (예: "과학기술정보통신부 장관상", "인천광역시장상"). 없으면 null
+- 공모전·대회가 아닌 지원사업(사업화 자금·교육 등)이면 셋 다 null"""
 
 PROMPT = f"""아래는 공고 하나의 상세 페이지 본문과 첨부파일 내용이다. 오늘은 {TODAY}.
 그림 파일이 있으면 Read 로 직접 열어 본다(포스터에 접수기간·대상이 적힌 경우가 많다).
@@ -64,7 +70,7 @@ PROMPT = f"""아래는 공고 하나의 상세 페이지 본문과 첨부파일 
 - organizer: 주최(주관) 기관
 - apply_start, apply_end: 접수 시작·마감일 YYYY-MM-DD. 상시·예산 소진 시까지면 apply_end 는 null
 - apply_text: 접수기간 원문 그대로 (예: "2026.11.01(토) ~ 11.30(일) 18:00", "상시 접수")
-- category: 해당하는 분류 모두
+- category: 해당하는 분류 모두. 창업보육센터·공유오피스 등 공간 입주기업·입주자 모집은 "입주·공간"(창업·사업화 아님). 창업·사업화는 자금·멘토링 등을 주는 사업
 - summary: 무슨 공고인지 한 줄
 - target: 참가 대상·자격 원문 요약 (예: "공고일 기준 업력 7년 이내 창업기업")
 - target_types: 지원할 수 있는 사람·기관 종류 모두. 제한 없으면 ["누구나"]
@@ -74,6 +80,7 @@ PROMPT = f"""아래는 공고 하나의 상세 페이지 본문과 첨부파일 
 - benefit: 지원 내용·시상 요약
 - amount_max: 한 곳(한 명)이 받는 최대 금액(원), 모르면 null
 - documents: 제출서류
+{PRIZE_RULES}
 - selection: 선정·심사 방법 요약
 - contact: 문의처"""
 
@@ -243,11 +250,11 @@ def save(conn, nid, d, text):
              apply_start = COALESCE(%s, apply_start), apply_end = COALESCE(%s, apply_end),
              category = %s, summary = %s, target = %s, target_types = %s, age_min = %s, age_max = %s,
              regions = %s, biz_age_max = %s, benefit = %s, amount_max = %s, documents = %s,
-             detail = %s, detail_text = %s
+             top_prize = %s, top_gift = %s, award = %s, detail = %s, detail_text = %s
            WHERE id = %s""",
         (d["is_recruit"], d["organizer"], to_date(d["apply_start"]), end,
          d["category"], d["summary"], d["target"], d["target_types"], d["age_min"], d["age_max"],
-         d["regions"], d["biz_age_max"], d["benefit"], d["amount_max"], d["documents"],
+         d["regions"], d["biz_age_max"], d["benefit"], d["amount_max"], d["documents"], d["top_prize"], d["top_gift"], d["award"],
          json.dumps({k: d[k] for k in ("apply_text", "selection", "contact")}, ensure_ascii=False), text, nid))
 
 
