@@ -194,7 +194,10 @@ SELECT a.id, b.id, a.title, b.title,
        concat_ws(' / ', '주최 ' || b.organizer, '기간 ' || concat(b.apply_start, '~', b.apply_end), '대상 ' || b.target, b.summary),
        norm_title(a.title) = norm_title(b.title)
 FROM notices a JOIN notices b
-  ON a.id < b.id AND norm_title(a.title) %% norm_title(b.title)
+  ON a.id < b.id
+  -- 후보: 공고명이 비슷하거나, 공고명이 달라도 주최가 비슷하고 마감일이 같은 쌍(현대모비스 로보틱스 ↔ MOBIS Robotics Challenge)
+  AND (norm_title(a.title) %% norm_title(b.title)
+       OR a.apply_end = b.apply_end AND similarity(a.organizer, b.organizer) >= 0.4)
   -- 같은 게시판의 서로 다른 글은 다른 공고. 씽굿이 다시 올린 '중복 //' 글만 예외
   AND (a.source_id <> b.source_id OR a.title LIKE '중복%%' OR b.title LIKE '중복%%')
 WHERE (a.apply_end IS NULL OR b.apply_end IS NULL OR a.apply_end = b.apply_end)
@@ -208,7 +211,8 @@ SAME_RULES = """사람이 판단하듯 누가 여는지(주최), 언제 받는�
 - 연도·회차·주최·대상·지역이 다르면 다른 공고다(예: 조선일보 신춘문예 ≠ 문화일보 신춘문예, 대전 사업 ≠ 충북 사업)
 - 같은 부처가 같은 기간에 같은 대상으로 내도 사업 이름·내용이 다르면 다른 공고다(예: 정보보호 컨설팅 지원 ≠ 정보보호 제품 도입 지원)
 - '모집 공고'와 '선정·합격·결과 안내'는 다른 글이다. 차수·월(9월/12월, 1차/2차)이 다르면 다른 공고다
-- 표기만 다르거나 '재공고·연장·수정'이 붙은 것은 같은 공고다. 정보가 비어 있는 칸('?')은 판단에서 뺀다"""
+- 표기만 다르거나 '재공고·연장·수정'이 붙은 것은 같은 공고다. 정보가 비어 있는 칸('?')은 판단에서 뺀다
+- 한쪽 공고명에만 [울산] 같은 지역 표시가 붙은 것은 다른 공고라는 근거가 아니다. 영어·한글 이름이 섞여 다르게 적힌 것도 같은 공고일 수 있다"""
 
 SAME_SCHEMA = {"type": "object", "properties": {"same": {"type": "array", "items": {"type": "integer"}}}, "required": ["same"]}
 
@@ -238,6 +242,12 @@ def regions_in(t):
     return {v for k, v in REGIONS.items() if k in t}
 
 
+def regions_clash(ta, tb):
+    """두 공고명에 모두 시·도가 적혀 있고 서로 다를 때만 다른 공고로 본다. 한쪽에만 [울산] 이 붙은 것은 막지 않는다"""
+    ra, rb = regions_in(ta), regions_in(tb)
+    return bool(ra and rb and ra != rb)
+
+
 def merge_duplicates(conn, since):
     """since 이후 들어온 공고를 기존 공고와 비교해 같은 것끼리 하나로 합친다(링크는 모두 남김)."""
     conn.execute(f"SET pg_trgm.similarity_threshold = {ASK_SIM}")
@@ -245,7 +255,7 @@ def merge_duplicates(conn, since):
     info_title = {}
     for a, b, ta, tb, *_ in rows:
         info_title[a], info_title[b] = ta, tb
-    same = [(a, b) for a, b, *_, ident in rows if ident]   # 괄호·기호만 다른 같은 공고명
+    same = [(a, b) for a, b, *_, ident in rows if ident]   # 기호·띄어쓰기만 다른 같은 공고명
     ask = [r for r in rows if not r[-1]]
     batches = [ask[i:i + 50] for i in range(0, len(ask), 50)]
     with ThreadPoolExecutor(PARALLEL) as ex:
@@ -254,7 +264,7 @@ def merge_duplicates(conn, since):
                 batches)):
             same += [(batch[i][0], batch[i][1]) for i in yes if i < len(batch)]
 
-    same = [(a, b) for a, b in same if regions_in(info_title[a]) == regions_in(info_title[b])]
+    same = [(a, b) for a, b in same if not regions_clash(info_title[a], info_title[b])]
     # 묶음끼리 합칠 때 양쪽에 적힌 시·도가 다르거나, 같은 사이트의 다른 글이 양쪽에 있으면 합치지 않는다
     # (A~B, B~C 로 줄줄이 이어져 다른 공고가 한 묶음이 되는 것을 막는다)
     src = dict(conn.execute("SELECT id, source_id FROM notices WHERE id = ANY(%s)", (list(info_title),)).fetchall())
@@ -265,7 +275,7 @@ def merge_duplicates(conn, since):
             x = parent[x]
         return x
     def clash(ga, gb):
-        return any(regions_in(info[x]) != regions_in(info[y])
+        return any(regions_clash(info[x], info[y])
                    or src[x] == src[y] and not (info[x].startswith("중복") or info[y].startswith("중복"))
                    for x in ga for y in gb)
     for a, b in sorted(same, key=lambda p: p[0]):
