@@ -301,6 +301,9 @@ def merge_duplicates(conn, since):
                           apply_start = COALESCE(k.apply_start, d.apply_start),
                           organizer = COALESCE(k.organizer, d.organizer), posted_at = COALESCE(k.posted_at, d.posted_at)
                         FROM notices d WHERE k.id = %s AND d.id = %s""", (keep, dup))
+        conn.execute("UPDATE notice_alias SET notice_id = %s WHERE notice_id = %s", (keep, dup))   # 예전에 dup 으로 합쳐진 번호도 keep 으로
+        conn.execute("""INSERT INTO notice_alias (old_id, notice_id) VALUES (%s, %s)
+                        ON CONFLICT (old_id) DO UPDATE SET notice_id = EXCLUDED.notice_id""", (dup, keep))
         conn.execute("DELETE FROM notices WHERE id = %s", (dup,))
         merged += 1
     # 대표 공고명이 씽굿의 '중복 //' 글이면 다른 사이트의 공고명으로 바꾼다

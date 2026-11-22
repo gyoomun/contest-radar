@@ -20,6 +20,7 @@ services:
       - ./db/005_prize_won.sql:/docker-entrypoint-initdb.d/05-prize-won.sql:ro
       - ./db/006_total_support.sql:/docker-entrypoint-initdb.d/06-total-support.sql:ro
       - ./db/007_norm_title_keep_paren.sql:/docker-entrypoint-initdb.d/07-norm-title.sql:ro
+      - ./db/008_notice_alias.sql:/docker-entrypoint-initdb.d/08-notice-alias.sql:ro
 
 volumes:
   research-pgdata:

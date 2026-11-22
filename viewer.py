@@ -42,6 +42,7 @@ SELECT n.id, n.title, n.url, n.organizer, n.posted_at, n.apply_start, n.apply_en
        n.status, n.first_seen_at::date, n.is_recruit, n.category, n.summary, n.target, n.target_types,
        n.regions, n.age_min, n.age_max, n.biz_age_max, n.benefit,
        n.first_seen_at > now() - interval '24 hours', m.star, m.memo, n.top_prize, n.top_gift, n.award, n.total_prize, n.total_prize_won, n.support, n.support_won,
+       (SELECT array_agg(old_id) FROM notice_alias a WHERE a.notice_id = n.id),   -- 묶기로 합쳐진 예전 번호
        CASE WHEN n.top_prize_won IS NOT NULL OR n.top_gift_won IS NOT NULL
             THEN coalesce(n.top_prize_won, 0) + coalesce(n.top_gift_won, 0) END,   -- 상금 순 정렬: 현금 + 금액이 적힌 상품
        (SELECT json_agg(json_build_object('name', s.name, 'url', l.url) ORDER BY s.name)
@@ -146,7 +147,9 @@ function render(){
   saveF();
   const words=$('#q').value.trim().toLowerCase().split(/\s+/).filter(Boolean), src=picked('#src'),
     cat=picked('#cat'), tt=picked('#tt'), rg=picked('#rg'), any=(have,want)=>!want.length||(have||[]).some(v=>want.includes(v));
-  let rows=data.filter(r=>any(r.links.map(l=>l.name),src)
+  /* 검색어가 공고 번호 하나뿐이면 다른 필터를 무시하고 그 공고만(묶여서 사라진 예전 번호도) */
+  const idq=words.length===1&&/^\d+$/.test(words[0])?+words[0]:null, idHit=r=>r.id===idq||(r.aliases||[]).includes(idq);
+  let rows=idq&&data.some(idHit)?data.filter(idHit):data.filter(r=>any(r.links.map(l=>l.name),src)
     &&(r.is_recruit!==false||$('#norec').checked)
     &&(!$('#star').checked||r.star)&&(!$('#onlynew').checked||r.is_new)
     &&any(r.category,cat)
@@ -201,7 +204,7 @@ fetch('/api/notices').then(r=>r.json()).then(d=>{data=d;
 
 COLS = ["id", "title", "url", "organizer", "posted_at", "apply_start", "apply_end", "status", "first_seen", "is_recruit",
         "category", "summary", "target", "target_types", "regions", "age_min", "age_max", "biz_age_max", "benefit",
-        "is_new", "star", "memo", "top_prize", "top_gift", "award", "total_prize", "total_prize_won", "support", "support_won", "prize_value", "links"]
+        "is_new", "star", "memo", "top_prize", "top_gift", "award", "total_prize", "total_prize_won", "support", "support_won", "aliases", "prize_value", "links"]
 
 
 class H(BaseHTTPRequestHandler):
