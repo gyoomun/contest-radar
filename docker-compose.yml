@@ -21,6 +21,7 @@ services:
       - ./db/006_total_support.sql:/docker-entrypoint-initdb.d/06-total-support.sql:ro
       - ./db/007_norm_title_keep_paren.sql:/docker-entrypoint-initdb.d/07-norm-title.sql:ro
       - ./db/008_notice_alias.sql:/docker-entrypoint-initdb.d/08-notice-alias.sql:ro
+      - ./db/009_apply_end_time.sql:/docker-entrypoint-initdb.d/09-apply-end-time.sql:ro
 
 volumes:
   research-pgdata:

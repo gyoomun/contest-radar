@@ -38,7 +38,7 @@ WHERE s.enabled ORDER BY s.id
 """
 
 SQL = """
-SELECT n.id, n.title, n.url, n.organizer, n.posted_at, n.apply_start, n.apply_end,
+SELECT n.id, n.title, n.url, n.organizer, n.posted_at, n.apply_start, n.apply_end, to_char(n.apply_end_time, 'HH24:MI'),
        n.status, n.first_seen_at::date, n.is_recruit, n.category, n.summary, n.target, n.target_types,
        n.regions, n.age_min, n.age_max, n.biz_age_max, n.benefit,
        n.first_seen_at > now() - interval '24 hours', m.star, m.memo, n.top_prize, n.top_gift, n.award, n.total_prize, n.total_prize_won, n.support, n.support_won,
@@ -48,7 +48,9 @@ SELECT n.id, n.title, n.url, n.organizer, n.posted_at, n.apply_start, n.apply_en
        (SELECT json_agg(json_build_object('name', s.name, 'url', l.url) ORDER BY s.name)
         FROM notice_links l JOIN sources s ON s.id = l.source_id WHERE l.notice_id = n.id) AS links
 FROM notices n LEFT JOIN marks m ON m.notice_id = n.id
-WHERE n.apply_end IS NULL OR n.apply_end >= CURRENT_DATE
+-- 지원할 공고만: 마감일이 지났거나, 오늘 마감인데 마감 시각이 지난 공고는 뺀다
+WHERE n.apply_end IS NULL OR n.apply_end > CURRENT_DATE
+   OR n.apply_end = CURRENT_DATE AND (n.apply_end_time IS NULL OR n.apply_end_time >= LOCALTIME)
 ORDER BY n.apply_end NULLS LAST, n.posted_at DESC NULLS LAST
 """
 
@@ -149,7 +151,8 @@ function render(){
     cat=picked('#cat'), tt=picked('#tt'), rg=picked('#rg'), any=(have,want)=>!want.length||(have||[]).some(v=>want.includes(v));
   /* 검색어가 공고 번호 하나뿐이면 다른 필터를 무시하고 그 공고만(묶여서 사라진 예전 번호도) */
   const idq=words.length===1&&/^\d+$/.test(words[0])?+words[0]:null, idHit=r=>r.id===idq||(r.aliases||[]).includes(idq);
-  let rows=idq&&data.some(idHit)?data.filter(idHit):data.filter(r=>any(r.links.map(l=>l.name),src)
+  const now=new Date(), closed=r=>r.apply_end&&new Date(`${r.apply_end}T${r.apply_end_time||'23:59'}:59`)<now;
+  let rows=idq&&data.some(idHit)?data.filter(idHit):data.filter(r=>!closed(r)&&any(r.links.map(l=>l.name),src)
     &&(r.is_recruit!==false||$('#norec').checked)
     &&(!$('#star').checked||r.star)&&(!$('#onlynew').checked||r.is_new)
     &&any(r.category,cat)
@@ -164,7 +167,7 @@ function render(){
   $('#count').textContent=`${rows.length}건 / 전체 ${data.length}건`;
   $('#rows').innerHTML=rows.map((r,i)=>{const d=dday(r.apply_end);
     const cls=d==null?'none':d<=3?'hot':d<=7?'warn':'';
-    return `<tr data-id="${r.id}"><td class="no">${i+1}</td><td class="id">${r.id}</td><td class="stc"><button class="st${r.star?' on':''}" data-act="star" title="관심">${r.star?'★':'☆'}</button></td><td><span class="dd ${cls}">${d==null?'모름':d===0?'오늘':'D-'+d}</span><div style="color:var(--mute);font-size:14px;white-space:nowrap">${r.apply_end||''}</div></td>
+    return `<tr data-id="${r.id}"><td class="no">${i+1}</td><td class="id">${r.id}</td><td class="stc"><button class="st${r.star?' on':''}" data-act="star" title="관심">${r.star?'★':'☆'}</button></td><td><span class="dd ${cls}">${d==null?'모름':d===0?'오늘':'D-'+d}</span><div style="color:var(--mute);font-size:14px;white-space:nowrap">${r.apply_end||''}</div>${r.apply_end_time?`<div style="font-size:14px;white-space:nowrap">${r.apply_end_time} 마감</div>`:''}</td>
       <td class="tags">${r.is_new?'<span class="new">NEW</span>':''}${cats(r)}</td>
       <td class="t"><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a><span class="mbtn" data-act="memo">${r.memo?'메모 고치기':'메모'}</span>${r.summary?`<div class="sub">${esc(r.summary)}</div>`:''}${r.memo?`<div class="memo">${esc(r.memo)}</div>`:''}</td>
       <td class="c pz">${r.top_prize?`<b>${esc(r.top_prize)}</b>`:''}${r.top_gift?`<span class="g">${esc(r.top_gift)}</span>`:''}${r.award?`<span class="aw">${esc(r.award)}</span>`:''}</td>
@@ -202,7 +205,7 @@ fetch('/api/notices').then(r=>r.json()).then(d=>{data=d;
   loadF(); render()});
 </script></body></html>"""
 
-COLS = ["id", "title", "url", "organizer", "posted_at", "apply_start", "apply_end", "status", "first_seen", "is_recruit",
+COLS = ["id", "title", "url", "organizer", "posted_at", "apply_start", "apply_end", "apply_end_time", "status", "first_seen", "is_recruit",
         "category", "summary", "target", "target_types", "regions", "age_min", "age_max", "biz_age_max", "benefit",
         "is_new", "star", "memo", "top_prize", "top_gift", "award", "total_prize", "total_prize_won", "support", "support_won", "aliases", "prize_value", "links"]
 

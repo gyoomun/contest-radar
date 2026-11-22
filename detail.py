@@ -42,7 +42,7 @@ SCHEMA = {
     "type": "object",
     "properties": {
         "is_recruit": {"type": "boolean"},
-        "organizer": S, "apply_start": S, "apply_end": S, "apply_text": S,
+        "organizer": S, "apply_start": S, "apply_end": S, "apply_end_time": S, "apply_text": S,
         "category": {"type": "array", "items": {"enum": CATEGORIES}},
         "summary": S, "target": S,
         "target_types": {"type": "array", "items": {"enum": TARGET_TYPES}},
@@ -54,7 +54,7 @@ SCHEMA = {
         "total_prize": S, "total_prize_won": I, "support": S, "support_won": I,
         "selection": S, "contact": S,
     },
-    "required": ["is_recruit", "organizer", "apply_start", "apply_end", "apply_text", "category", "summary", "target",
+    "required": ["is_recruit", "organizer", "apply_start", "apply_end", "apply_end_time", "apply_text", "category", "summary", "target",
                  "target_types", "age_min", "age_max", "regions", "biz_age_max", "benefit", "amount_max", "documents",
                  "top_prize", "top_gift", "award", "top_prize_won", "top_gift_won", "total_prize", "total_prize_won", "support", "support_won", "selection", "contact"],
 }
@@ -73,6 +73,7 @@ PROMPT = f"""아래는 공고 하나의 상세 페이지 본문과 첨부파일 
 - is_recruit: 참가자·참여기업·작품·지원자를 모집하는 공고면 true. 결과·합격자 발표, 출석부, 휴관·일정 안내, 보도자료, 리포트 발간은 false
 - organizer: 주최(주관) 기관
 - apply_start, apply_end: 접수 시작·마감일 YYYY-MM-DD. 상시·예산 소진 시까지면 apply_end 는 null
+- apply_end_time: 마감 시각 HH:MM (예: "18:00", "17시까지" → "17:00", "24:00" → "23:59"). 시각이 안 적혀 있거나 00:00 이면 null
 - apply_text: 접수기간 원문 그대로 (예: "2026.11.01(토) ~ 11.30(일) 18:00", "상시 접수")
 - category: 해당하는 분류 모두. 창업보육센터·공유오피스 등 공간 입주기업·입주자 모집은 "입주·공간"(창업·사업화 아님). 창업·사업화는 자금·멘토링 등을 주는 사업
 - summary: 무슨 공고인지 한 줄
@@ -251,13 +252,16 @@ def save(conn, nid, d, text):
     conn.execute(
         """UPDATE notices SET status = 'detailed', error = NULL,
              is_recruit = %s, organizer = COALESCE(%s, organizer),
-             apply_start = COALESCE(%s, apply_start), apply_end = COALESCE(%s, apply_end),
+             apply_start = COALESCE(%s, apply_start), apply_end = COALESCE(%s, apply_end), apply_end_time = COALESCE(%s, apply_end_time),
              category = %s, summary = %s, target = %s, target_types = %s, age_min = %s, age_max = %s,
              regions = %s, biz_age_max = %s, benefit = %s, amount_max = %s, documents = %s,
-             top_prize = %s, top_gift = %s, award = %s, top_prize_won = %s, top_gift_won = %s,
-             total_prize = %s, total_prize_won = %s, support = %s, support_won = %s, detail = %s, detail_text = %s
+             -- 시상·지원금은 다시 읽어 빈 값이 나와도 이미 있던 값을 지우지 않는다(다시 읽기에서 21건이 지워진 적 있음)
+             top_prize = COALESCE(%s, top_prize), top_gift = COALESCE(%s, top_gift), award = COALESCE(%s, award),
+             top_prize_won = COALESCE(%s, top_prize_won), top_gift_won = COALESCE(%s, top_gift_won),
+             total_prize = COALESCE(%s, total_prize), total_prize_won = COALESCE(%s, total_prize_won),
+             support = COALESCE(%s, support), support_won = COALESCE(%s, support_won), detail = %s, detail_text = %s
            WHERE id = %s""",
-        (d["is_recruit"], d["organizer"], to_date(d["apply_start"]), end,
+        (d["is_recruit"], d["organizer"], to_date(d["apply_start"]), end, d["apply_end_time"],
          d["category"], d["summary"], d["target"], d["target_types"], d["age_min"], d["age_max"],
          d["regions"], d["biz_age_max"], d["benefit"], d["amount_max"], d["documents"], d["top_prize"], d["top_gift"], d["award"], d["top_prize_won"], d["top_gift_won"], d["total_prize"], d["total_prize_won"], d["support"], d["support_won"],
          json.dumps({k: d[k] for k in ("apply_text", "selection", "contact")}, ensure_ascii=False), text, nid))
