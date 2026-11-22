@@ -85,6 +85,7 @@ td.m{color:var(--mute);font-size:14px}td.c{font-size:14px;line-height:1.5}
 .new{display:inline-block;font-size:13px;font-weight:700;padding:0 7px;margin:0 0 3px;border-radius:99px;background:color-mix(in srgb,var(--hot) 16%,transparent);color:var(--hot)}
 .st{background:none;border:0;cursor:pointer;font-size:22px;line-height:25px;height:25px;color:var(--mute);padding:0 4px;border-radius:6px}.st:hover{background:var(--line)}.st.on{color:#fab005}
 .memo{font-size:14px;margin-top:4px;padding:3px 8px;border-radius:6px;background:color-mix(in srgb,#fab005 16%,transparent);white-space:pre-wrap}
+.cp{margin-top:6px;padding:2px 10px;font:inherit;font-size:14px;color:var(--mute);background:none;border:1px solid var(--line);border-radius:6px;cursor:pointer}.cp:hover{color:var(--fg)}.cp.ok{color:var(--accent);border-color:var(--accent)}
 .mbtn{font-size:13px;color:var(--mute);cursor:pointer;margin-left:6px;opacity:0;text-decoration:underline}tr:hover .mbtn{opacity:1}
 #warn{margin:8px 0 0;padding:8px 12px;border-radius:8px;background:color-mix(in srgb,var(--hot) 12%,transparent);color:var(--hot);font-size:15px}#warn:empty{display:none}
 .run{margin-left:auto;padding:7px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg);font:inherit;cursor:pointer}.run:disabled{opacity:.5;cursor:default}
@@ -173,7 +174,7 @@ function render(){
     const cls=d==null?'none':d<=3?'hot':d<=7?'warn':'';
     return `<tr data-id="${r.id}"><td class="no">${i+1}</td><td class="id">${r.id}</td><td class="stc"><button class="st${r.star?' on':''}" data-act="star" title="관심">${r.star?'★':'☆'}</button></td><td><span class="dd ${cls}">${d==null?'모름':d===0?'오늘':'D-'+d}</span><div style="color:var(--mute);font-size:14px;white-space:nowrap">${r.apply_end||''}</div>${r.apply_end_time?`<div style="font-size:14px;white-space:nowrap">${r.apply_end_time} 마감</div>`:''}</td>
       <td class="tags">${r.is_new?'<span class="new">NEW</span>':''}${cats(r)}</td>
-      <td class="t"><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a><span class="mbtn" data-act="memo">${r.memo?'메모 고치기':'메모'}</span>${r.summary?`<div class="sub">${esc(r.summary)}</div>`:''}${r.memo?`<div class="memo">${esc(r.memo)}</div>`:''}</td>
+      <td class="t"><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a><span class="mbtn" data-act="memo">${r.memo?'메모 고치기':'메모'}</span>${r.summary?`<div class="sub">${esc(r.summary)}</div>`:''}${r.memo?`<div class="memo">${esc(r.memo)}</div>`:''}<div><button class="cp" data-act="copy">링크 복사</button></div></td>
       <td class="c pz">${r.top_prize?`<b>${esc(r.top_prize)}</b>`:''}${r.top_gift?`<span class="g">${esc(r.top_gift)}</span>`:''}${r.award?`<span class="aw">${esc(r.award)}</span>`:''}</td>
       <td class="c pz">${r.total_prize?`<b>${esc(r.total_prize)}</b>`:''}</td><td class="c pz">${r.support?`<b>${esc(r.support)}</b>`:''}</td>
       <td class="c">${esc(r.benefit)}</td><td class="c">${esc(r.target)}${lim(r)}</td>
@@ -188,6 +189,7 @@ document.querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{const k=th.d
 const save=r=>fetch('/api/mark',{method:'POST',body:JSON.stringify({id:r.id,star:r.star,memo:r.memo})});
 $('#rows').addEventListener('click',e=>{const act=e.target.dataset.act; if(!act)return;
   const r=data.find(x=>x.id==e.target.closest('tr').dataset.id);
+  if(act==='copy'){navigator.clipboard.writeText(r.url).then(()=>{e.target.textContent='복사됨';e.target.classList.add('ok');setTimeout(()=>{e.target.textContent='링크 복사';e.target.classList.remove('ok')},1500)});return}
   if(act==='star') r.star=!r.star;
   else {const m=prompt('메모 (비우면 지움)',r.memo||''); if(m===null)return; r.memo=m.trim()||null;}
   save(r); render()});
